@@ -1,20 +1,17 @@
 import type { ScheduleResponse, TimeSlot } from "../schemas/schedule";
 import { bold, dim, cyan } from "../lib/color";
-import { formatDateTime, formatTimeOnly, timeUntil, subtractBooked } from "../lib/time-ago";
+import { formatDateTime, formatTimeOnly, timeUntil, subtractBooked, formatDuration } from "../lib/time-ago";
 
 function formatTime(iso: string, timezone: string): string {
   return formatDateTime(iso, timezone);
 }
 
-function slotDuration(slot: TimeSlot): string {
-  const start = new Date(slot.start_time).getTime();
-  const end = new Date(slot.end_time).getTime();
-  const hours = (end - start) / (1000 * 60 * 60);
-  return hours >= 1 ? `${Math.round(hours * 10) / 10}h` : `${Math.round((end - start) / (1000 * 60))}min`;
+function slotMinutes(slot: TimeSlot): number {
+  return (new Date(slot.end_time).getTime() - new Date(slot.start_time).getTime()) / (1000 * 60);
 }
 
-function slotHours(slot: TimeSlot): number {
-  return (new Date(slot.end_time).getTime() - new Date(slot.start_time).getTime()) / (1000 * 60 * 60);
+function slotDuration(slot: TimeSlot): string {
+  return formatDuration(slotMinutes(slot));
 }
 
 function dayKey(iso: string, timezone: string): string {
@@ -53,8 +50,8 @@ export function formatSchedule(response: ScheduleResponse, timezone: string, tea
     ? `${dim(`#${teacherId}`)}  ${bold(teacherName)} — ${bold("Availability")}`
     : bold("  Availability");
 
-  const totalHours = free.reduce((sum, s) => sum + slotHours(s), 0);
-  const totalLabel = totalHours > 0 ? `  ${dim("|")}  ${dim("Total time:")} ${totalHours % 1 === 0 ? `${totalHours}h` : `${totalHours.toFixed(1)}h`}` : "";
+  const totalMinutes = free.reduce((sum, s) => sum + slotMinutes(s), 0);
+  const totalLabel = totalMinutes > 0 ? `  ${dim("|")}  ${dim("Total time:")} ${formatDuration(totalMinutes)}` : "";
 
   const header: string[] = [
     title,
@@ -68,10 +65,8 @@ export function formatSchedule(response: ScheduleResponse, timezone: string, tea
     ? [
         "", `  ${bold("Available:")}`,
         ...groupSlotsByDay(free, timezone).flatMap((group) => {
-          const dayHours = group.slots.reduce((sum, s) => sum + slotHours(s), 0);
-          const dayLabel = dayHours % 1 === 0 ? `${dayHours}h` : `${dayHours.toFixed(1)}h`;
           return [
-            `  ${cyan(group.day)} ${dim(`(${dayLabel})`)}:`,
+            `  ${cyan(group.day)}:`,
             ...group.slots.map((s) => formatSlot(s, timezone)),
           ];
         }),
