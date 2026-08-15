@@ -30,7 +30,7 @@ export default defineCommand({
 
     const [profile, schedule] = await Promise.all([
       getTeacher(id),
-      showSchedule ? getSchedule(id).catch(() => null) : Promise.resolve(null),
+      showSchedule ? getSchedule(id, 7).catch(() => null) : Promise.resolve(null),
     ]);
 
     // Piped output defaults to JSON (LLM/script consumers); terminal defaults to human-readable

@@ -61,3 +61,39 @@ export function formatTimeOnly(iso: string, timezone?: string): string {
     hour12: false,
   });
 }
+
+// Minimum bookable slot — lessons start at 30 min
+const MIN_SLOT_MINUTES = 30;
+
+type SlotLike = { start_time: string; end_time: string };
+
+// Subtract booked sessions from available slots, return free sub-slots >= 30 min.
+// available_schedule is the container, teacher_lesson are holes inside it.
+export function subtractBooked<T extends SlotLike>(available: T[], booked: T[]): T[] {
+  const result: T[] = [];
+  for (const avail of available) {
+    const aStart = new Date(avail.start_time).getTime();
+    const aEnd = new Date(avail.end_time).getTime();
+    const overlaps: Array<[number, number]> = booked
+      .map((b) => [new Date(b.start_time).getTime(), new Date(b.end_time).getTime()] as [number, number])
+      .filter(([bStart, bEnd]) => bStart < aEnd && bEnd > aStart)
+      .sort((a, b) => a[0] - b[0]);
+
+    if (overlaps.length === 0) {
+      if ((aEnd - aStart) / (1000 * 60) >= MIN_SLOT_MINUTES) result.push(avail);
+      continue;
+    }
+
+    let cursor = aStart;
+    for (const [bStart, bEnd] of overlaps) {
+      if (bStart > cursor && (bStart - cursor) / (1000 * 60) >= MIN_SLOT_MINUTES) {
+        result.push({ ...avail, start_time: new Date(cursor).toISOString(), end_time: new Date(bStart).toISOString() });
+      }
+      cursor = Math.max(cursor, bEnd);
+    }
+    if (cursor < aEnd && (aEnd - cursor) / (1000 * 60) >= MIN_SLOT_MINUTES) {
+      result.push({ ...avail, start_time: new Date(cursor).toISOString(), end_time: new Date(aEnd).toISOString() });
+    }
+  }
+  return result;
+}

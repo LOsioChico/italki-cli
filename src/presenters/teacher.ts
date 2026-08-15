@@ -3,7 +3,7 @@ import type { ScheduleResponse } from "../schemas/schedule";
 import { formatPrice, TAG_NAMES, formatSessionLength, LEVEL_MAP } from "../constants";
 import { bold, dim, green, yellow, cyan } from "../lib/color";
 import { wrapText } from "../lib/wrap";
-import { timeAgo, formatDateTime, formatTimeOnly, timeUntil } from "../lib/time-ago";
+import { timeAgo, formatDateTime, formatTimeOnly, timeUntil, subtractBooked } from "../lib/time-ago";
 
 const MONTHS = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -207,13 +207,10 @@ export function formatTeacher(
 }
 
 export function formatTeacherSchedule(schedule: ScheduleResponse, timezone: string, teacherId?: number): string[] {
-  // Filter out slots too short to book (< 30 min) — API returns fragments near "now + advance booking"
-  const all = schedule.data.available_schedule.filter((s) => {
-    const hours = (new Date(s.end_time).getTime() - new Date(s.start_time).getTime()) / (1000 * 60 * 60);
-    return hours * 60 >= 30;
-  });
+  // Subtract booked sessions from available slots, filter < 30 min
+  const all = subtractBooked(schedule.data.available_schedule, schedule.data.teacher_lesson);
   const slots = all.slice(0, 3);
-  if (slots.length === 0) return ["\n  No available slots in next 5 days."];
+  if (slots.length === 0) return ["\n  No available slots in the next 7 days."];
 
   const totalHours = all.reduce((sum, s) => sum + (new Date(s.end_time).getTime() - new Date(s.start_time).getTime()) / (1000 * 60 * 60), 0);
   const totalLabel = totalHours % 1 === 0 ? `${totalHours}h` : `${totalHours.toFixed(1)}h`;
