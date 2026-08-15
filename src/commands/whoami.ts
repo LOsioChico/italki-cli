@@ -2,6 +2,7 @@ import { defineCommand } from "citty";
 import { getFoundation, getAnalytics } from "../services/user";
 import { readConfig } from "../services/config";
 import { formatWhoami } from "../presenters/whoami";
+import { dim } from "../lib/color";
 
 export default defineCommand({
   meta: { description: "Show your italki profile and learning stats" },
@@ -29,5 +30,7 @@ export default defineCommand({
 
     const lines = formatWhoami(foundation, analytics);
     console.log(lines.join("\n"));
+    console.log("");
+    console.log(dim("  More: italki lessons  |  italki balance"));
   },
 });

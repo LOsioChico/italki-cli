@@ -207,7 +207,11 @@ export function formatTeacher(
 }
 
 export function formatTeacherSchedule(schedule: ScheduleResponse, timezone: string, teacherId?: number): string[] {
-  const all = schedule.data.available_schedule;
+  // Filter out slots too short to book (< 30 min) — API returns fragments near "now + advance booking"
+  const all = schedule.data.available_schedule.filter((s) => {
+    const hours = (new Date(s.end_time).getTime() - new Date(s.start_time).getTime()) / (1000 * 60 * 60);
+    return hours * 60 >= 30;
+  });
   const slots = all.slice(0, 3);
   if (slots.length === 0) return ["\n  No available slots in next 5 days."];
 

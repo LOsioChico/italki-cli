@@ -46,8 +46,8 @@ export function formatReviews(response: ReviewsResponse, id: number, pageSize: n
 
   const langFlag = language ? ` --language ${language}` : "";
   const pagination = response.paging?.has_next
-    ? ["", dim(`  Next page: italki reviews ${id} --page ${page + 1}${pageSize !== 10 ? ` --page-size ${pageSize}` : ""}${langFlag}`)]
+    ? [dim(`  Next page: italki reviews ${id} --page ${page + 1}${pageSize !== 10 ? ` --page-size ${pageSize}` : ""}${langFlag}`)]
     : [];
 
-  return [header, "", ...reviewLines, ...pagination];
+  return [header, "", ...reviewLines, "", ...pagination, dim(`  Profile: italki teacher ${id}  |  Schedule: italki schedule ${id}`)];
 }

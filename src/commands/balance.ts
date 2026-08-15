@@ -2,6 +2,7 @@ import { defineCommand } from "citty";
 import { getBalance } from "../services/finance";
 import { readConfig } from "../services/config";
 import { formatBalance } from "../presenters/balance";
+import { dim } from "../lib/color";
 
 export default defineCommand({
   meta: { description: "Show your italki credit balance" },
@@ -25,5 +26,7 @@ export default defineCommand({
 
     const lines = formatBalance(balance);
     console.log(lines.join("\n"));
+    console.log("");
+    console.log(dim("  More: italki lessons  |  italki whoami"));
   },
 });

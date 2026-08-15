@@ -54,19 +54,16 @@ export default defineCommand({
       lines.push(...formatTeacherSchedule(schedule, tz, id));
     }
 
-    // Hint: full runnable command = flags already used + flags not yet used
+    // Hint: suggest flags not yet used (don't repeat what user already passed)
     const hinted: string[] = [];
     if (!showCourses) hinted.push("--courses");
-    if (showCourses && !ctx.args.packages) hinted.push("--packages");
+    else if (!ctx.args.packages) hinted.push("--packages");
     if (!ctx.args.stats) hinted.push("--stats");
     if (!ctx.args.schedule) hinted.push("--schedule");
     if (hinted.length > 0) {
-      const used: string[] = [];
-      if (showCourses) used.push("--courses");
-      if (ctx.args.packages) used.push("--packages");
-      if (ctx.args.stats) used.push("--stats");
-      if (ctx.args.schedule) used.push("--schedule");
-      lines.push("", dim(`  More: italki teacher ${id} ${[...used, ...hinted].join(" ")}`));
+      lines.push("", dim(`  More: italki teacher ${id} ${hinted.join(" ")}`));
+    } else if (ctx.args.schedule) {
+      lines.push("", dim(`  Full schedule: italki schedule ${id}`));
     }
 
     console.log(lines.join("\n"));

@@ -71,5 +71,9 @@ export function formatSearch(result: SearchResponse, filters: SearchFilters, lim
     ? ["", dim(`  Next page: italki search ${filters.language}${filterFlags(filters) ? ` ${filterFlags(filters)}` : ""} --page ${result.paging.page + 1}`)]
     : [];
 
-  return [header, "", ...teacherLines, ...pagination];
+  const hint = teachers.length > 0
+    ? [dim(`  View profile: italki teacher <id>`)]
+    : [];
+
+  return [header, "", ...teacherLines, ...pagination, ...hint];
 }

@@ -68,5 +68,15 @@ export default defineCommand({
 
       console.log(`${status}  ${bold(teacher)}  ${dim(`${when} (${rel})`)}  ${dim(duration)}  ${dim(price)}  ${lang}`);
     }
+
+    const hints: string[] = [];
+    if (ctx.args.upcoming !== true && ctx.args.past !== true) hints.push("--upcoming", "--past");
+    else if (ctx.args.upcoming === true) hints.push("--past");
+    else if (ctx.args.past === true) hints.push("--upcoming");
+    if (!fetchAll) hints.push("--all");
+    if (hints.length > 0) {
+      console.log("");
+      console.log(dim(`  More: italki lessons ${hints.join(" ")}`));
+    }
   },
 });
