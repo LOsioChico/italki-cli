@@ -77,7 +77,7 @@ bun run index.ts <command> --help    # flags for a specific command
 | `get_whoami` | Profile + learning languages + analytics | Yes |
 | `get_lessons` | Lesson history with client-side filters | Yes |
 
-All tools return Zod-validated JSON.
+All tools return Zod-validated, human-readable text by default. Pass `json: true` for raw JSON.
 
 ## Tech stack
 
