@@ -186,13 +186,13 @@ Before writing code, stop at the first rung that holds:
 - Don't push unless explicitly asked.
 - Squash redundant commits before significant milestones. History should read as logical steps, not iterative corrections.
 
-## Future interfaces
+## Interfaces
 
-**MCP server:** Built — `src/mcp/server.ts` + `src/mcp/tools.ts`. Imports from `src/services/` only. Registered as `italki mcp` command. 8 tools: search_teachers, get_teacher, get_schedule, get_reviews, compare_teachers (public, no auth); get_balance, get_whoami, get_lessons (require login — return isError if no saved session). Runtime-verified over stdio (initialize, tools/list, tools/call).
+**CLI:** `src/commands/` — citty-based, auto `--help`. `bun run index.ts --help` lists all commands.
 
-**REST API:** Add `src/api/app.ts` with Hono. Import from `src/services/`. Zero changes to services.
+**MCP server:** `src/mcp/server.ts` + `src/mcp/tools.ts`. Imports from `src/services/` only. Registered as `italki mcp` command. 8 tools: search_teachers, get_teacher, get_schedule, get_reviews, compare_teachers (public, no auth); get_balance, get_whoami, get_lessons (require login — return isError if no saved session). Runtime-verified over stdio.
 
-The separation rule makes REST additive, not invasive.
+**REST API (future):** Add `src/api/app.ts` with Hono. Import from `src/services/`. Zero changes to services. The separation rule makes REST additive, not invasive.
 
 ## References
 
