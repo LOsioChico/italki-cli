@@ -1,0 +1,224 @@
+import type { TeacherProfile } from "../schemas/teacher";
+import type { ScheduleResponse } from "../schemas/schedule";
+import { formatPrice, TAG_NAMES, formatSessionLength, LEVEL_MAP } from "../constants";
+import { bold, dim, green, yellow, cyan } from "../lib/color";
+import { wrapText } from "../lib/wrap";
+import { timeAgo } from "../lib/time-ago";
+
+const MONTHS = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+type Course = TeacherProfile["data"]["pro_course_detail"] extends (infer T)[] | undefined ? T : never;
+
+function tagLabel(code: string): string {
+  return TAG_NAMES[code as keyof typeof TAG_NAMES] ?? code;
+}
+
+function formatLanguages(langs: { language: string; level?: number | undefined }[] | undefined): string | null {
+  if (!langs?.length) return null;
+  return langs.map((l) => `${l.language} (${LEVEL_MAP[l.level ?? -1] ?? "?"})`).join(", ");
+}
+
+function formatPriceTiers(
+  priceList: Course["price_list"],
+  showPackages: boolean,
+): string[] {
+  if (!priceList?.length) return [];
+
+  // Deduplicate by session_length, keep first entry
+  const seen = new Set<number>();
+  const tiers = priceList
+    .filter((p) => {
+      if (seen.has(p.session_length)) return false;
+      seen.add(p.session_length);
+      return true;
+    })
+    .sort((a, b) => a.session_length - b.session_length);
+
+  return tiers.map((p) => {
+    const len = formatSessionLength(p.session_length);
+    const standalone = green(formatPrice(p.session_price));
+    if (!showPackages) return `      ${dim(`${len}:`)} ${standalone}/session`;
+
+    const pkgPerSession = green(formatPrice(p.package_price / p.package_length));
+    const pkgTotal = green(formatPrice(p.package_price));
+    const discount = p.session_price - p.package_price / p.package_length;
+    const discountStr = discount > 0
+      ? dim(`  |  ${p.package_length}-pack `) + pkgTotal + dim(` (${pkgPerSession}/session, save ${formatPrice(discount)}/session)`)
+      : dim(`  |  ${p.package_length}-pack `) + pkgTotal;
+    return `      ${dim(`${len}:`)} ${standalone}/session${discountStr}`;
+  });
+}
+
+function formatCourse(course: Course, showPackages: boolean): string[] {
+  const tags = course.course_tags?.length
+    ? dim(` [${course.course_tags.map(tagLabel).join(", ")}]`)
+    : "";
+  const sessionCount = course.session_count != null ? dim(`  |  ${course.session_count} sessions`) : "";
+  const header = `    ${bold(course.title)}${tags}${sessionCount}`;
+
+  const priceLines = course.price_list?.length
+    ? formatPriceTiers(course.price_list, showPackages)
+    : course.session_price != null
+      ? [`      ${green(formatPrice(course.session_price))}/session`]
+      : [];
+
+  return [header, ...priceLines];
+}
+
+function formatStats(profile: TeacherProfile): string[] {
+  const d = profile.data;
+  const t = d.teacher_info;
+
+  const sessionStats = d.teacher_statistics?.finished_session_list?.length
+    ? (() => {
+        const stats = d.teacher_statistics!.finished_session_list!;
+        const recent = stats.slice(-3).map((s) => `${MONTHS[s.month] ?? `month ${s.month}`}: ${s.data}`).join(", ");
+        return [`\n  ${bold("Recent sessions:")} ${recent}`];
+      })()
+    : [];
+
+  const education = t.edu_info?.length
+    ? [`\n  ${bold("Education:")}`, ...t.edu_info.map((e) => {
+        const parts = [e.institution, e.major].filter(Boolean);
+        return `    ${parts.join(" — ") ?? "?"}`;
+      })]
+    : [];
+
+  const certifications = t.cert_info?.length
+    ? [`\n  ${bold("Certifications:")}`, ...t.cert_info.map((c) => {
+        const year = c.end_year ? dim(` (${c.end_year})`) : "";
+        const parts = [c.certificate, c.institution].filter(Boolean);
+        return `    ${parts.join(" — ") ?? "?"}${year}`;
+      })]
+    : [];
+
+  const experience = t.teaching_experience?.length
+    ? [`\n  ${bold("Experience:")}`, ...t.teaching_experience.map((exp) => {
+        const years = exp.start_year && exp.end_year ? `${exp.start_year}-${exp.end_year}` : exp.start_year?.toString() ?? "?";
+        const parts = [exp.position, exp.institution].filter(Boolean);
+        return `    ${dim(years)}  ${parts.join(" — ") ?? "?"}`;
+      })]
+    : [];
+
+  return [...sessionStats, ...education, ...certifications, ...experience];
+}
+
+function exactTime(iso: string, timezone: string | undefined): string {
+  return new Date(iso).toLocaleString("en-US", {
+    timeZone: timezone,
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
+
+export function formatTeacher(
+  profile: TeacherProfile,
+  opts: { showPackages?: boolean; showCourses?: boolean; showStats?: boolean; timezone?: string } = {},
+): string[] {
+  const d = profile.data;
+  const u = d.user_info;
+  const t = d.teacher_info;
+  const c = d.course_info;
+
+  const teacherType = u.is_pro ? cyan("PRO") : dim("TUTOR");
+  const rating = yellow(String(t.overall_rating ?? "?"));
+  const sessions = t.session_count ?? 0;
+  const students = t.student_count ?? 0;
+
+  // Header — online teachers don't need "last seen"; offline shows relative + exact time
+  const status = u.is_online
+    ? green("online")
+    : u.last_login_time
+      ? dim(`last seen ${timeAgo(u.last_login_time)} (${exactTime(u.last_login_time, opts.timezone)})`)
+      : dim("offline");
+
+  const header: string[] = [
+    `${dim(`#${u.user_id}`)}  ${bold(u.nickname)} [${teacherType}]  (${status})`,
+    dim(`  ${u.origin_country_id}${u.origin_city_name ? `, ${u.origin_city_name}` : ""}${u.timezone ? `  |  ${u.timezone}` : ""}`),
+    `  ${dim("Rating:")} ${rating}  ${dim("|")}  ${dim("Sessions:")} ${sessions}  ${dim("|")}  ${dim("Students:")} ${students}`,
+    dim(`  Profile: https://www.italki.com/en/teacher/${u.user_id}`),
+    ...(t.video_url ? [dim(`  Intro video: ${t.video_url}`)] : []),
+  ];
+
+  const signature = t.short_signature ? [`  ${t.short_signature}`] : [];
+
+  // About
+  const about = t.about_me
+    ? [`\n  ${bold("About:")}`, ...wrapText(t.about_me, "    ")]
+    : [];
+
+  // Languages
+  const teaches = formatLanguages(t.teach_language);
+  const speaks = formatLanguages(t.also_speak);
+  const languages: string[] = [
+    ...(teaches ? [`  Teaches: ${teaches}`] : []),
+    ...(speaks ? [`  Also speaks: ${speaks}`] : []),
+  ];
+
+  // Trial
+  const trial = c?.has_trial && c.trial_price != null
+    ? [`  ${dim("Trial:")} ${green(formatPrice(c.trial_price))} ${dim(`for ${formatSessionLength(c.trial_length)}`)}${c.trial_session_count != null ? dim(`  |  ${c.trial_session_count} trials`) : ""}`]
+    : [];
+
+  // Features
+  const features: string[] = [
+    ...(t.instant_lesson_status ? ["instant lessons"] : []),
+    ...(t.recording_permission ? ["AI summaries"] : []),
+  ];
+  const featuresLine = features.length > 0 ? [`  ${dim("Features:")} ${cyan(features.join(", "))}`] : [];
+
+  // Courses (opt-in)
+  const courseLines: string[] = opts.showCourses
+    ? (() => {
+        const courses = [...(d.pro_course_detail ?? []), ...(d.tutor_course_detail ?? [])];
+        if (courses.length === 0) return [];
+        return [
+          `\n  ${bold(`Courses (${courses.length}):`)}`,
+          ...courses.flatMap((course) => ["", ...formatCourse(course, opts.showPackages === true)]),
+        ];
+      })()
+    : [];
+
+  // Stats (opt-in)
+  const statLines = opts.showStats ? formatStats(profile) : [];
+
+  return [
+    ...header,
+    ...signature,
+    ...about,
+    ...languages,
+    ...trial,
+    ...featuresLine,
+    ...courseLines,
+    ...statLines,
+  ];
+}
+
+export function formatTeacherSchedule(schedule: ScheduleResponse, timezone: string): string[] {
+  const slots = schedule.data.available_schedule.slice(0, 3);
+  if (slots.length === 0) return ["\n  No available slots in next 5 days."];
+
+  const lines = slots.map((s) => {
+    const start = new Date(s.start_time).toLocaleString("en-US", {
+      timeZone: timezone,
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+    const end = new Date(s.end_time).toLocaleTimeString("en-US", {
+      timeZone: timezone,
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+    return `    ${start} – ${end}`;
+  });
+
+  return [`\n  ${bold("Next available slots:")} ${dim(`(${timezone})`)}`, ...lines];
+}
