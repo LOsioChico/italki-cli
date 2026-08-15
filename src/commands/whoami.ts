@@ -21,7 +21,7 @@ export default defineCommand({
       getAnalytics(config).catch(() => null),
     ]);
 
-    const useJson = ctx.args.json === true || !process.stdout.isTTY;
+    const useJson = ctx.args.json === true;
 
     if (useJson) {
       console.log(JSON.stringify({ foundation: foundation.data, analytics }, null, 2));

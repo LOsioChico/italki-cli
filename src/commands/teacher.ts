@@ -33,8 +33,7 @@ export default defineCommand({
       showSchedule ? getSchedule(id, 7).catch(() => null) : Promise.resolve(null),
     ]);
 
-    // Piped output defaults to JSON (LLM/script consumers); terminal defaults to human-readable
-    const useJson = ctx.args.json === true || !process.stdout.isTTY;
+    const useJson = ctx.args.json === true;
 
     if (useJson) {
       console.log(JSON.stringify(profile, null, 2));

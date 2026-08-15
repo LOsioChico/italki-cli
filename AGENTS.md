@@ -49,8 +49,8 @@ track lessons — all programmable.
 services/  →  schemas/ + lib/ + constants
 commands/  →  services/ + presenters/
 presenters/ →  schemas/ + constants + lib/
-mcp/       →  services/ only
-api/       →  services/ only (when added)
+mcp/       →  services/ + presenters/
+api/       →  services/ + presenters/ (when added)
 ```
 
 `services/` never imports from `commands/`, `presenters/`, `@clack/prompts`, or any interface layer.
@@ -78,13 +78,14 @@ the separation. Services return data. Interfaces present it.
 
 ### Output rule
 
-Services return plain data. Presenters format it. The `--json` flag is handled in `commands/`, never in services. *(lint-enforced: `italki/no-console-in-services`)*
+Services return plain data. Presenters format it (translate codes to human-readable: cents→dollars, tag codes→names, etc). The `--json` flag is handled in `commands/` and `mcp/`, never in services. *(lint-enforced: `italki/no-console-in-services`)*
 
 ```
 command parses args → service returns data → presenter formats output → stdout
+mcp tool calls service → presenter formats output → text content (or JSON if json=true)
 ```
 
-When piped (`!process.stdout.isTTY`), default to JSON. When terminal, default to human-readable.
+Presenter text is the default output everywhere — CLI and MCP. JSON is opt-in via `--json` flag (CLI) or `json: true` arg (MCP). ANSI colors auto-disable when stdout is not a TTY, so presenter text is plain in MCP/piped contexts.
 
 ## API knowledge
 
@@ -114,7 +115,7 @@ If you're unsure about an API behavior, test it with `curl` first (G13: curl fir
 |---|---|---|
 | `zod` | Runtime validation of API responses. The italki API has 50+ nested fields. Schemas infer TS types. | Hand-written interfaces drift from reality. We verified 95 tag codes, 7 categories, 13 filters — the schema is the contract. |
 | `citty` | CLI arg parsing + `--help` generation. | Commander is heavier. Hand-rolling is ~20 lines but no auto-help. Citty is ~3KB, works on Bun + Node. |
-| `@modelcontextprotocol/sdk` | MCP server over stdio for AI tools (Claude, Cursor). Same services as CLI, wrapped as JSON-RPC tools. | LLMs can use `--json` CLI output, but MCP gives structured tool calls + schemas. SDK is the official spec implementation. |
+| `@modelcontextprotocol/sdk` | MCP server over stdio for AI tools (Claude, Cursor). Same services + presenters as CLI, wrapped as JSON-RPC tools. | MCP gives structured tool calls + schemas. Both CLI and MCP default to presenter text; JSON is opt-in (`--json` / `json: true`). SDK is the official spec implementation. |
 
 **What we deliberately did NOT add:**
 - **@clack/prompts** — was installed for interactive browsing, but nothing used it. Removed. Re-add when an interactive flow actually exists. Lint rules still ban it in services/ and presenters/.
@@ -190,7 +191,7 @@ Before writing code, stop at the first rung that holds:
 
 **CLI:** `src/commands/` — citty-based, auto `--help`. `bun run index.ts --help` lists all commands.
 
-**MCP server:** `src/mcp/server.ts` + `src/mcp/tools.ts`. Imports from `src/services/` only. Registered as `italki mcp` command. 8 tools: search_teachers, get_teacher, get_schedule, get_reviews, compare_teachers (public, no auth); get_balance, get_whoami, get_lessons (require login — return isError if no saved session). Runtime-verified over stdio.
+**MCP server:** `src/mcp/server.ts` + `src/mcp/tools.ts`. Imports from `src/services/` + `src/presenters/`. Registered as `italki mcp` command. 8 tools: search_teachers, get_teacher, get_schedule, get_reviews, compare_teachers (public, no auth); get_balance, get_whoami, get_lessons (require login — return isError if no saved session). All tools return presenter text by default; pass `json: true` for raw JSON. Runtime-verified over stdio.
 
 **REST API (future):** Add `src/api/app.ts` with Hono. Import from `src/services/`. Zero changes to services. The separation rule makes REST additive, not invasive.
 

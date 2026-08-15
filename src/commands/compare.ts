@@ -34,8 +34,7 @@ export default defineCommand({
       process.exit(1);
     }
 
-    // Piped output defaults to JSON (LLM/script consumers); terminal defaults to human-readable
-    const useJson = ctx.args.json === true || !process.stdout.isTTY;
+    const useJson = ctx.args.json === true;
 
     if (useJson) {
       console.log(JSON.stringify(profiles, null, 2));

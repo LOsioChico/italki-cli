@@ -26,8 +26,7 @@ export default defineCommand({
     const allowEmpty = ctx.args["allow-empty"] === true;
     const response = await getReviews(id, page, pageSize, language, allowEmpty);
 
-    // Piped output defaults to JSON (LLM/script consumers); terminal defaults to human-readable
-    const useJson = ctx.args.json === true || !process.stdout.isTTY;
+    const useJson = ctx.args.json === true;
 
     if (useJson) {
       console.log(JSON.stringify(response, null, 2));

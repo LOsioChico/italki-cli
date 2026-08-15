@@ -62,8 +62,7 @@ export default defineCommand({
       ? sortTeachers(result, sort)
       : result;
 
-    // Piped output defaults to JSON (LLM/script consumers); terminal defaults to human-readable
-    const useJson = ctx.args.json === true || !process.stdout.isTTY;
+    const useJson = ctx.args.json === true;
 
     if (useJson) {
       const jsonResult = limit && sortedResult.data

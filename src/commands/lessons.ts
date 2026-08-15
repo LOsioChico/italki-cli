@@ -1,9 +1,8 @@
 import { defineCommand } from "citty";
 import { getLessons, getAllLessons } from "../services/lesson";
 import { readConfig } from "../services/config";
-import { formatPrice, formatSessionLength } from "../constants";
-import { bold, dim, green, yellow } from "../lib/color";
-import { formatDateTime, timeAgo, timeUntil } from "../lib/time-ago";
+import { formatLessons } from "../presenters/lessons";
+import { dim } from "../lib/color";
 
 export default defineCommand({
   meta: { description: "Show your lesson history" },
@@ -21,7 +20,7 @@ export default defineCommand({
       process.exit(1);
     }
 
-    const useJson = ctx.args.json === true || !process.stdout.isTTY;
+    const useJson = ctx.args.json === true;
     const fetchAll = ctx.args.all === true;
 
     // --all fetches all pages; otherwise page 1 (50 items)
@@ -56,18 +55,8 @@ export default defineCommand({
       return;
     }
 
-    for (const l of sliced) {
-      const teacher = l.opposite_user_info?.nickname ?? "?";
-      const start = l.session_obj?.session_start_time ?? "";
-      const when = start ? formatDateTime(start, config.timezone_iana) : "?";
-      const rel = start ? (l.group === "completed" ? timeAgo(start) : timeUntil(start)) : "";
-      const duration = formatSessionLength(l.duration);
-      const price = formatPrice(l.total_price);
-      const status = l.group === "completed" ? green("✓") : l.group === "upcoming" ? yellow("◯") : dim(l.group);
-      const lang = l.language;
-
-      console.log(`${status}  ${bold(teacher)}  ${dim(`${when} (${rel})`)}  ${dim(duration)}  ${dim(price)}  ${lang}`);
-    }
+    const lines = formatLessons(sliced, config.timezone_iana);
+    console.log(lines.join("\n"));
 
     const hints: string[] = [];
     if (ctx.args.upcoming !== true && ctx.args.past !== true) hints.push("--upcoming", "--past");

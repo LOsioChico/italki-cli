@@ -17,7 +17,7 @@ export default defineCommand({
     }
 
     const balance = await getBalance(config);
-    const useJson = ctx.args.json === true || !process.stdout.isTTY;
+    const useJson = ctx.args.json === true;
 
     if (useJson) {
       console.log(JSON.stringify(balance.data, null, 2));

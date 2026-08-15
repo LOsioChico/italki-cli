@@ -29,8 +29,7 @@ export default defineCommand({
       getTeacher(id).catch(() => null),
     ]);
 
-    // Piped output defaults to JSON (LLM/script consumers); terminal defaults to human-readable
-    const useJson = ctx.args.json === true || !process.stdout.isTTY;
+    const useJson = ctx.args.json === true;
 
     if (useJson) {
       console.log(JSON.stringify(schedule, null, 2));
