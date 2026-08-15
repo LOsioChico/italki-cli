@@ -40,7 +40,8 @@ function groupSlotsByDay(slots: TimeSlot[], timezone: string): Array<{ day: stri
 function formatSlot(slot: TimeSlot, timezone: string): string {
   const start = formatTimeOnly(slot.start_time, timezone);
   const end = formatTimeOnly(slot.end_time, timezone);
-  return `    ${start}–${end} (${slotDuration(slot)})`;
+  const rel = timeUntil(slot.start_time);
+  return `    ${start}–${end} ${dim(`(${slotDuration(slot)}, ${rel})`)}`;
 }
 
 export function formatSchedule(response: ScheduleResponse, timezone: string, teacherName?: string, teacherId?: number): string[] {
