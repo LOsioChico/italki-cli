@@ -5,7 +5,7 @@
 
 ## What we know (verified Aug 15, 2026)
 
-See `docs/api-reference.md` for full endpoint documentation (24 verified endpoints).
+See `docs/api-reference.md` for full endpoint documentation (23 verified endpoints).
 
 ### Public API (no auth)
 

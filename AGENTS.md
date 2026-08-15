@@ -31,12 +31,12 @@ Read this file before writing code. Nearest `AGENTS.md` wins.
 ## What this project is
 
 A CLI + MCP server for handling italki through the terminal and LLM tools — search, compare,
-book, and track lessons without the web UI. The italki API is undocumented; every endpoint,
+and track lessons without the web UI. The italki API is undocumented; every endpoint,
 filter, and enum value in `docs/api-reference.md` was verified by sending real requests and
 checking responses.
 
 **The goal:** let LLMs (Claude, Cursor) and scripts interact with italki through structured
-tool calls and JSON output, not screen scraping. Search tutors, filter, compare, book, and
+tool calls and JSON output, not screen scraping. Search tutors, filter, compare, and
 track lessons — all programmable.
 
 **What it is NOT:** a scraper, or an official italki product. Booking is planned (Phase 3).
@@ -195,5 +195,5 @@ The separation rule makes REST additive, not invasive.
 ## References
 
 - `docs/api-reference.md` — verified endpoint documentation (read before writing services)
-- `ROADMAP.md` — 4-phase plan with deliverables
+- `ROADMAP.md` — 3-phase plan with deliverables
 - [rappi-cli](https://github.com/crafter-station/rappi-cli) — architectural pattern reference
