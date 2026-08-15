@@ -26,7 +26,7 @@ enforcement (including account suspension or termination) is at italki's sole di
 
 - **Personal, low-volume, authenticated use** of your own account data is the lowest-risk path.
 - **Do not bulk-scrape** the teacher directory or run high-rate automated requests.
-- **Do not expose** the MCP server or booking automation to other users — that crosses from
+- **Do not expose** the MCP server to other users — that crosses from
   personal use into a third-party service.
 
 This project does not redistribute italki Content. All data is fetched live from italki's
@@ -40,7 +40,7 @@ collaborate than operate in the gray.
 ## Why
 
 The goal is to handle italki through a CLI and LLM tools — search tutors, compare,
-filter, book, and track lessons without the web UI. This CLI gives you:
+filter, and track lessons without the web UI. This CLI gives you:
 
 - **Teacher search** with all server-side filters (price, country, language, category, availability)
 - **Teacher profiles** with courses, pricing, and stats in one command

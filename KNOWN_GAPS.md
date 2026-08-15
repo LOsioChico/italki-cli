@@ -2,7 +2,7 @@
 
 > Verification status per module. Statuses: `runtime-verified` (ran against live API this codebase's lifetime),
 > `unit-tested-only`, `aspirational` (planned, not built).
-> Update this file whenever a module's status changes. Last audit: 2026-08-14.
+> Update this file whenever a module's status changes. Last audit: 2026-08-15.
 
 ## Verification status
 

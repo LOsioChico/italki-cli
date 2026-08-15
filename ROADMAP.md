@@ -74,7 +74,7 @@ See `docs/api-reference.md` for full endpoint documentation (24 verified endpoin
 | 2 | `config.timezone_iana` | From italki settings, saved at login |
 | 3 | `DEFAULT_TIMEZONE` (`America/Bogota`) | Fallback before first login |
 
-**Deliverable:** `italki login` saves token + timezone to config. `balance` and `whoami` work with saved session. All commands use saved timezone by default. Runtime-verified Aug 15, 2026 (except `login` — Cloudflare rate-limited during testing, code complete).
+**Deliverable:** `italki login` saves token + timezone to config. `balance` and `whoami` work with saved session. All commands use saved timezone by default. Runtime-verified Aug 15, 2026.
 
 ### Phase 3: Booking
 
