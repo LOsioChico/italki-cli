@@ -57,8 +57,9 @@ bun run index.ts <command> --help    # flags for a specific command
 
 `italki mcp` starts a stdio MCP server for AI tools (Claude Desktop, Cursor):
 
+`~/.config/claude/claude_desktop_config.json`:
+
 ```json
-// ~/.config/claude/claude_desktop_config.json
 {
   "mcpServers": {
     "italki": { "command": "bun", "args": ["run", "/path/to/italki-cli/index.ts", "mcp"] }
