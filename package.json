@@ -1,0 +1,28 @@
+{
+  "name": "italki-cli",
+  "version": "0.0.1",
+  "description": "CLI + MCP server for italki — search teachers, compare, read reviews, check schedule, and track lessons from the terminal or AI tools",
+  "type": "module",
+  "module": "index.ts",
+  "bin": {
+    "italki": "index.ts"
+  },
+  "scripts": {
+    "dev": "bun run index.ts",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint",
+    "verify": "tsc --noEmit && oxlint"
+  },
+  "private": true,
+  "devDependencies": {
+    "@types/bun": "latest",
+    "oxlint": "^1.78.0",
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.30.0",
+    "citty": "^0.2.2",
+    "zod": "^4.4.3"
+  }
+}
