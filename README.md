@@ -78,10 +78,10 @@ italki teacher 1518723
 italki teacher 1518723 --courses   # show course list with pricing
 italki teacher 1518723 --courses --packages  # include package discounts
 italki teacher 1518723 --stats     # education, certifications, experience, session stats
-italki teacher 1518723 --schedule  # show next 3 available time slots
+italki teacher 1518723 --schedule  # show next 3 available slots (7-day preview)
 italki teacher 1518723 --json      # raw JSON for piping
 
-# Check availability (with timezone conversion)
+# Check availability (4-week window, with timezone conversion)
 italki schedule 1518723
 italki schedule 1518723 --timezone America/Bogota
 
@@ -135,7 +135,7 @@ italki search english --json | jq '.data[].user_info.nickname'
 |---|---|---|
 | `search_teachers` | Search by language with filters + client-side sort + `all` for full fetch | No |
 | `get_teacher` | Full teacher profile (bio, courses, pricing, stats, education) | No |
-| `get_schedule` | Availability calendar (UTC slots — convert to user timezone) | No |
+| `get_schedule` | Availability calendar (4-week window, subtracts booked sessions) | No |
 | `get_reviews` | Paginated student reviews | No |
 | `compare_teachers` | Fetch 2+ teacher profiles in parallel for side-by-side comparison | No |
 | `get_balance` | Credit balance (ITC) | Yes |

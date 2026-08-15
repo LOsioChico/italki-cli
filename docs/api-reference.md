@@ -457,7 +457,16 @@ Same structure as `pro_course_detail` but for community tutor courses. Empty for
 GET https://api.italki.com/api/v2/teacher/{id}/schedule
 ```
 
-**No auth required.** Returns availability for the next ~5 days.
+**No auth required.** Returns availability for the next ~7 days by default.
+
+**Query params:**
+
+| Param | Format | Effect |
+|---|---|---|
+| `start_time` | `YYYY-MM-DD` (or ISO 8601) | Start of date range. Default: today |
+| `end_time` | `YYYY-MM-DD` (or ISO 8601) | End of date range. Default: +7 days. Max tested: +28 days (4 weeks) |
+
+Both params accept `YYYY-MM-DD` or full ISO 8601. With `start_time=2026-08-16&end_time=2026-09-15`, returns 30 slots spanning Aug 16 – Sep 14.
 
 **Response:**
 
@@ -487,17 +496,18 @@ GET https://api.italki.com/api/v2/teacher/{id}/schedule
 | Field | Type | Notes |
 |---|---|---|
 | `minimum_request_time_interval` | number | Minutes of advance booking required. Varies per teacher (observed 360–720) |
-| `available_schedule` | array | Open time slots the teacher has marked available |
-| `teacher_lesson` | array | Already-booked sessions (same format as available_schedule) |
+| `available_schedule` | array | Open time slots the teacher has marked available. These are **containers** — booked sessions inside them are listed separately in `teacher_lesson`. Subtract `teacher_lesson` overlaps to get actual free time. |
+| `teacher_lesson` | array | Already-booked sessions. Overlaps with `available_schedule` by design — these are holes inside the availability windows. |
 | `student_group_class` | array | Group classes (student perspective) |
 | `teacher_group_class` | array | Group classes (teacher perspective) |
 | `student_lesson` | array | Student's booked lessons with this teacher |
 | `closest_available_datetime` | string | Next available slot (ISO 8601, may be empty) |
 
 **Verified limitations:**
-- **No date range filtering.** Tested `start_date`, `end_date`, `from`, `to`, `start`, `end`, `date`, `month`, `user_timezone` as query params — all ignored. Returns the same ~14 slots (next 5 days) regardless.
+- **Date range filtering works** via `start_time` and `end_time` params. Other param names (`start_date`, `end_date`, `from`, `to`, `start`, `end`, `date`, `month`, `user_timezone`) are ignored.
 - **Time slots are in UTC** (`+00:00`). Convert to user's timezone client-side.
-- **Slot duration** is derived from `end_time - start_time` (typically 60 minutes).
+- **`available_schedule` contains booked sessions.** The API returns the teacher's full availability windows, not free slots. Booked sessions (`teacher_lesson`) overlap with `available_schedule` — subtract them to get actual free time. Slots under 30 min after subtraction are not bookable (lessons start at 30 min).
+- **Slot duration** varies — typically 60 min, but fragments as short as 3 min appear near "now + advance booking" boundary.
 
 ---
 
@@ -1304,7 +1314,7 @@ See the filter fields table above for the full tag list per category.
 
 - ✅ `POST /api/v2/teachers` — search, pagination (pages 1-100 reachable), server-side filters work, no server-side sort
 - ✅ `GET /api/v2/teacher/{id}` — full profile with all fields documented
-- ✅ `GET /api/v2/teacher/{id}/schedule` — availability calendar, no date range params
+- ✅ `GET /api/v2/teacher/{id}/schedule` — availability calendar, supports `start_time`/`end_time` date range params (default 7 days, max tested 28 days)
 - ✅ `GET /api/v2/teacher/{id}/lesson_reviews` — paginated reviews, language filter, Teacher's picks first, page_size max 100
 - ✅ `GET /api/v2/user/{id}` — user profile (non-teacher data)
 - ✅ `POST /api/v2/teachers/filter` — metadata only (count, price histogram), not useful for CLI
