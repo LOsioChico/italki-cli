@@ -1,6 +1,7 @@
 import { defineCommand } from "citty";
 import { getReviews } from "../services/reviews";
 import { formatReviews } from "../presenters/reviews";
+import { dim } from "../lib/color";
 
 export default defineCommand({
   meta: { description: "Read a teacher's student reviews" },
@@ -35,5 +36,16 @@ export default defineCommand({
 
     const lines = formatReviews(response, id, pageSize, language);
     console.log(lines.join("\n"));
+
+    const hints: string[] = [];
+    if (!language) hints.push("--language <lang>");
+    if (pageSize === 10) hints.push("--page-size 50");
+    if (!allowEmpty) hints.push("--allow-empty");
+    if (hints.length > 0) {
+      console.log("");
+      console.log(dim(`  More: italki reviews ${id} ${hints.join("  |  ")}`));
+    }
+    console.log("");
+    console.log(dim(`  Profile: italki teacher ${id}  |  Schedule: italki schedule ${id}`));
   },
 });

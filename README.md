@@ -135,7 +135,7 @@ italki search english --json | jq '.data[].user_info.nickname'
 |---|---|---|
 | `search_teachers` | Search by language with filters + client-side sort + `all` for full fetch | No |
 | `get_teacher` | Full teacher profile (bio, courses, pricing, stats, education) | No |
-| `get_schedule` | Availability calendar (4-week window, subtracts booked sessions) | No |
+| `get_schedule` | Availability calendar (default 28 days, `days` param adjustable). Raw JSON — `available_schedule` contains booked sessions, subtract `teacher_lesson` for free time | No |
 | `get_reviews` | Paginated student reviews | No |
 | `compare_teachers` | Fetch 2+ teacher profiles in parallel for side-by-side comparison | No |
 | `get_balance` | Credit balance (ITC) | Yes |

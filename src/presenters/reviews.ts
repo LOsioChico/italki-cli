@@ -49,5 +49,5 @@ export function formatReviews(response: ReviewsResponse, id: number, pageSize: n
     ? [dim(`  Next page: italki reviews ${id} --page ${page + 1}${pageSize !== 10 ? ` --page-size ${pageSize}` : ""}${langFlag}`)]
     : [];
 
-  return [header, "", ...reviewLines, "", ...pagination, dim(`  Profile: italki teacher ${id}  |  Schedule: italki schedule ${id}`)];
+  return [header, "", ...reviewLines, "", ...pagination];
 }

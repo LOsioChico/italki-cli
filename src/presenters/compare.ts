@@ -77,6 +77,7 @@ export function formatCompare(profiles: TeacherProfile[], timezone: string): str
     return `${label}  ${cells.join("  ")}`;
   });
 
-  const ids = teachers.map((t) => t.user_info.user_id).join(" ");
-  return [headerLine, idLine, "", ...body, "", dim(`  Times in ${timezone}`), "", dim(`  Full profile: italki teacher <id>  |  Reviews: italki reviews <id>  |  Compared: italki compare ${ids}`)];
+  const ids = teachers.map((t) => t.user_info.user_id);
+  const profileHints = ids.map((id) => `italki teacher ${id}`).join("  |  ");
+  return [headerLine, idLine, "", ...body, "", dim(`  Times in ${timezone}`), "", dim(`  Profile: ${profileHints}  |  Schedule: italki schedule ${ids[0]}`)];
 }

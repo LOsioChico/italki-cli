@@ -90,10 +90,13 @@ export function registerTools(server: McpServer): void {
   server.registerTool(
     "get_schedule",
     {
-      description: "Get a teacher's availability for the next ~5 days. Times are UTC — convert to the student's timezone yourself.",
-      inputSchema: { id: z.number().describe("Teacher ID") },
+      description: "Get a teacher's availability calendar. Times are UTC — convert to the student's timezone yourself. available_schedule contains booked sessions; subtract teacher_lesson overlaps to get free time.",
+      inputSchema: {
+        id: z.number().describe("Teacher ID"),
+        days: z.number().optional().describe("Days to fetch (default 28, max 90)"),
+      },
     },
-    async ({ id }) => jsonResult(await getSchedule(id)),
+    async ({ id, days }) => jsonResult(await getSchedule(id, days ?? 28)),
   );
 
   server.registerTool(

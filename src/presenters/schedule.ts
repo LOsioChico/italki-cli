@@ -80,5 +80,5 @@ export function formatSchedule(response: ScheduleResponse, timezone: string, tea
       ]
     : [];
 
-  return [...header, ...availableLines, ...bookedLines, "", dim(`  Profile: italki teacher ${teacherId ?? "<id>"}`)];
+  return [...header, ...availableLines, ...bookedLines];
 }
