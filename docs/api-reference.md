@@ -271,7 +271,7 @@ GET https://api.italki.com/api/v2/teacher/{id}
 | `instant_lesson_status` | 0/1 | 0 | Offers instant lessons |
 | `instant_now` | 0/1 | 0 | Available for instant lesson right now |
 | `is_new` | 0/1 | 0 | New teacher |
-| `is_student_full` | 0/1 | 0 | Not accepting new students |
+| `is_student_full` | number (0-5) | 0 | Student acceptance status. 0=All (accepting everyone), 1-2=Existing (only existing students), 3-5=None (not accepting new students). Verified from italki JS source (`accepting_student_type` prop). Search API only returns 0 — non-accepting teachers are excluded from search results. |
 | `cancel_policy` | string | | Cancellation policy text |
 | `teacher_material_list` | array | `[1,2,3,4,5,6,8,11,12]` | Teaching material IDs |
 | `teacher_tag` | array | `[4]` | Category tags |
