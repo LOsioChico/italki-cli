@@ -232,8 +232,8 @@ GET https://api.italki.com/api/v2/teacher/{id}
 | `user_id` | number | 1518723 | Unique teacher ID |
 | `nickname` | string | "Tamara Business" | Display name |
 | `avatar_file_name` | string | "T015187238" | Avatar ID (URL: `https://imagesavatar-static01.italki.com/{avatar_file_name}_Avatar.jpg`) |
-| `is_tutor` | 0/1 | 1 | 1 = community tutor, 0 = professional teacher |
-| `is_pro` | 0/1 | 1 | 1 = professional teacher (has certification) |
+| `is_tutor` | 0/1 | 1 | 1 = teacher also offers community tutor courses. Not mutually exclusive with `is_pro` — a teacher can be both (10/20 teachers in sample have both=1). UI label is determined by `is_pro` alone. |
+| `is_pro` | 0/1 | 1 | 1 = professional teacher. UI uses `is_pro === 1 ? "Professional Teacher" : "Community Tutor"` (verified from JS source). |
 | `origin_country_id` | string | "US" | ISO country code |
 | `living_country_id` | string | "AR" | ISO country code |
 | `is_online` | 0/1 | 0 | Currently online |
@@ -264,15 +264,15 @@ GET https://api.italki.com/api/v2/teacher/{id}
 | `pro_rating` | string | "5.0" | Rating as professional teacher |
 | `tutor_rating` | string | "5.0" | Rating as community tutor |
 | `overall_rating` | string | "5.0" | Combined rating (string, not number!) |
-| `first_valid_time` | string | "2014-08-08T07:34:29Z" | Teaching since |
-| `available_time_90d` | string | "2026-08-20T14:30:00+00:00" | Next available slot |
+| `first_valid_time` | string | "2014-08-08T07:34:29Z" | When teacher joined italki. UI shows as "italki teacher since {date}" (verified from JS source + matching page text). |
+| `available_time_90d` | string | "2026-08-20T14:30:00+00:00" | Availability window for next 90 days. Used by JS to compute `availableToday`, `isAvailableTomorrow`, `isAvailableTheDayAfterThreeMonth`. NOT the same as "next available slot" — use schedule endpoint's `closest_available_datetime` for that. |
 | `has_trial` | 0/1 | 1 | Offers trial lesson |
 | `free_trial` | 0/1 | 0 | Free trial (rare) |
 | `instant_lesson_status` | 0/1 | 0 | Offers instant lessons |
 | `instant_now` | 0/1 | 0 | Available for instant lesson right now |
 | `is_new` | 0/1 | 0 | New teacher |
 | `is_student_full` | number (0-5) | 0 | Student acceptance status. 0=All (accepting everyone), 1-2=Existing (only existing students), 3-5=None (not accepting new students). Verified from italki JS source (`accepting_student_type` prop). Search API only returns 0 — non-accepting teachers are excluded from search results. |
-| `cancel_policy` | string | | Cancellation policy text |
+| `cancel_policy` | string | | Free-text cancellation policy written by teacher. Often empty (4/5 teachers in sample). |
 | `teacher_material_list` | array | `[1,2,3,4,5,6,8,11,12]` | Teaching material IDs |
 | `teacher_tag` | array | `[4]` | Category tags |
 | `interested_tags` | array | `[{name, text_code}]` | Interest tags (travel, art, finance, etc.) |
@@ -284,7 +284,7 @@ GET https://api.italki.com/api/v2/teacher/{id}
 | `sorted_cert_info` | array | | Pre-sorted certifications |
 | `teaching_experience` | array | | Teaching experience entries |
 | `auto_greeting` | 0/1 | 1 | Auto-greeting enabled |
-| `recording_permission` | 0/1 | 0 | Allows lesson recording |
+| `recording_permission` | 0/1 | 0 | Allows italki Plus AI Lesson Summary (teacher permits audio recording for AI transcription). NOT about students recording lessons. |
 
 **`teaching_experience` entry structure:**
 
