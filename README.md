@@ -183,7 +183,7 @@ See `docs/api-reference.md` for the full category and tag list (95 T tags + 4 ki
 ```
 User runs: italki search english --type pro
 
-  ┌─────────┐    args     ┌───────────┐    fetch    ┌───────────┐
+  ┌─────────┐    args     ┌───────────┐    fetch   ┌───────────┐
   │  CLI    │ ──────────> │  command  │ ─────────> │  service  │
   │ (citty) │             │ (search)  │            │ (search)  │
   └─────────┘             └─────┬─────┘            └─────┬─────┘
