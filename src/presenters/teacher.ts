@@ -94,7 +94,8 @@ function formatStats(profile: TeacherProfile): string[] {
 
   const experience = t.teaching_experience?.length
     ? [`\n  ${bold("Experience:")}`, ...t.teaching_experience.map((exp) => {
-        const years = exp.start_year && exp.end_year ? `${exp.start_year}-${exp.end_year}` : exp.start_year?.toString() ?? "?";
+        const end = exp.end_year === 2155 ? "present" : exp.end_year?.toString() ?? "";
+        const years = exp.start_year ? `${exp.start_year}-${end}` : "?";
         const parts = [exp.position, exp.institution].filter(Boolean);
         return `    ${dim(years)}  ${parts.join(" — ") ?? "?"}`;
       })]

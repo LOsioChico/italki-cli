@@ -286,41 +286,74 @@ GET https://api.italki.com/api/v2/teacher/{id}
 | `auto_greeting` | 0/1 | 1 | Auto-greeting enabled |
 | `recording_permission` | 0/1 | 0 | Allows lesson recording |
 
+**`teaching_experience` entry structure:**
+
+| Field | Type | Example | Notes |
+|---|---|---|---|
+| `id` | number | 688 | |
+| `user_id` | number | 4308569 | |
+| `start_year` | number | 2018 | |
+| `end_year` | number | 2155 | `2155` = current/ongoing |
+| `institution` | string | "Italki" | |
+| `institution_type` | string | "self_employed_online" | e.g., `self_employed_online` |
+| `position` | string | "Professional Certified Teacher" | |
+| `country` | string | "SE" | |
+| `city` | string | "Stockholm - São Paulo" | |
+| `description` | string | | |
+| `status` | number | 1 | |
+| `create_at` | string | "2024-03-05T11:40:46Z" | |
+| `create_by` | string | "4308569" | User ID who created |
+| `update_at` | string | "2025-10-10T03:30:34Z" | |
+| `update_by` | string | "4308569" | User ID who last updated |
+
 **`exp_info` entry structure:**
 
-| Field | Type | Example |
-|---|---|---|
-| `country` | string | "AR" |
-| `city` | string | "Buenos Aires" |
-| `company` | string | "Italki" |
-| `job` | string | "Professional Teacher" |
-| `description` | string | |
-| `start_year` | number | 2014 |
-| `end_year` | number | 2020 |
-| `exp_id` | number | 17212 |
+| Field | Type | Example | Notes |
+|---|---|---|---|
+| `country` | string | "AR" | |
+| `city` | string | "Buenos Aires" | |
+| `company` | string | "Italki" | |
+| `job` | string | "Professional Teacher" | |
+| `industry` | string | "language_literature" | Industry slug (e.g., `art_humanities`, `technology_engineering`) |
+| `description` | string | | |
+| `start_year` | number | 2014 | |
+| `end_year` | number | 2020 | `2155` = current/ongoing |
+| `status` | number | 1 | |
+| `file_ext` | string | "" | |
+| `file_path` | string | "" | |
+| `exp_id` | number | 17212 | |
 
 **`edu_info` entry structure:**
 
-| Field | Type | Example |
-|---|---|---|
-| `institution` | string | "Indiana University" |
-| `major` | string | "Education - TESOL" |
-| `level` | number | 2 (1=certificate, 2=degree, 5=other) |
-| `start_year` | number | 1977 |
-| `end_year` | number | 1979 |
-| `file_ext` | string | "pdf" |
-| `edu_id` | string | UUID |
+| Field | Type | Example | Notes |
+|---|---|---|---|
+| `institution` | string | "Indiana University" | |
+| `major` | string | "Education - TESOL" | |
+| `level` | number | 2 | `[unverified — enum not decoded]` JS maps to text codes: 1→TA551, 2→ST016, 3→ST017, 4→ST018, other→C0087. Translations not found in JS bundle. Not displayed by CLI. |
+| `start_year` | number | 1977 | |
+| `end_year` | number | 1979 | `2155` = current/ongoing |
+| `status` | number | 1 | |
+| `file_ext` | string | "pdf" | |
+| `description` | string | | |
+| `create_time` | string | "2018-05-11T10:46:08Z" | |
+| `edu_id` | string | UUID | |
 
 **`cert_info` entry structure:**
 
-| Field | Type | Example |
-|---|---|---|
-| `certificate` | string | "Master's degree" |
-| `institution` | string | "Indiana University" |
-| `description` | string | |
-| `end_year` | number | 1979 |
-| `file_ext` | string | "pdf" |
-| `cert_id` | string | UUID |
+| Field | Type | Example | Notes |
+|---|---|---|---|
+| `certificate` | string | "Master's degree" | |
+| `institution` | string | "Indiana University" | |
+| `description` | string | | |
+| `end_year` | number | 1979 | `2155` = current/ongoing |
+| `language` | string | "portuguese" | Language the cert is for |
+| `type` | string | "EUROLTA" | Cert type code |
+| `type_text_code` | string | "TA567" | i18n text code |
+| `status` | number | 1 | |
+| `file_ext` | string | "pdf" | |
+| `create_time` | string | "2018-05-11T10:52:34Z" | |
+| `update_time` | string | "2024-03-05T11:53:51Z" | |
+| `cert_id` | string | UUID | |
 
 #### `data.course_info` (trial lesson info)
 
