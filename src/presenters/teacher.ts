@@ -3,7 +3,7 @@ import type { ScheduleResponse } from "../schemas/schedule";
 import { formatPrice, TAG_NAMES, formatSessionLength, LEVEL_MAP } from "../constants";
 import { bold, dim, green, yellow, cyan } from "../lib/color";
 import { wrapText } from "../lib/wrap";
-import { timeAgo } from "../lib/time-ago";
+import { timeAgo, formatDateTime, formatTimeOnly, timeUntil } from "../lib/time-ago";
 
 const MONTHS = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -120,14 +120,7 @@ function formatStats(profile: TeacherProfile): string[] {
 }
 
 function exactTime(iso: string, timezone: string | undefined): string {
-  return new Date(iso).toLocaleString("en-US", {
-    timeZone: timezone,
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
+  return formatDateTime(iso, timezone, { showYear: false });
 }
 
 export function formatTeacher(
@@ -213,28 +206,26 @@ export function formatTeacher(
   ];
 }
 
-export function formatTeacherSchedule(schedule: ScheduleResponse, timezone: string): string[] {
-  const slots = schedule.data.available_schedule.slice(0, 3);
+export function formatTeacherSchedule(schedule: ScheduleResponse, timezone: string, teacherId?: number): string[] {
+  const all = schedule.data.available_schedule;
+  const slots = all.slice(0, 3);
   if (slots.length === 0) return ["\n  No available slots in next 5 days."];
 
+  const totalHours = all.reduce((sum, s) => sum + (new Date(s.end_time).getTime() - new Date(s.start_time).getTime()) / (1000 * 60 * 60), 0);
+  const totalLabel = totalHours % 1 === 0 ? `${totalHours}h` : `${totalHours.toFixed(1)}h`;
+
   const lines = slots.map((s) => {
-    const start = new Date(s.start_time).toLocaleString("en-US", {
-      timeZone: timezone,
-      weekday: "short",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    });
-    const end = new Date(s.end_time).toLocaleTimeString("en-US", {
-      timeZone: timezone,
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    });
-    return `    ${start} – ${end}`;
+    const start = formatDateTime(s.start_time, timezone);
+    const end = formatTimeOnly(s.end_time, timezone);
+    const rel = timeUntil(s.start_time);
+    const dur = (new Date(s.end_time).getTime() - new Date(s.start_time).getTime()) / (1000 * 60 * 60);
+    const durLabel = dur >= 1 ? `${Math.round(dur * 10) / 10}h` : `${Math.round(dur * 60)}min`;
+    return `    ${start} – ${end} ${dim(`(${durLabel}, ${rel})`)}`;
   });
 
-  return [`\n  ${bold("Next available slots:")} ${dim(`(${timezone})`)}`, ...lines];
+  const more = all.length > 3
+    ? dim(`  …and ${all.length - 3} more slots (${totalLabel} total). See all: italki schedule ${teacherId ?? ""}`.trim())
+    : dim(`  ${totalLabel} total`);
+
+  return [`\n  ${bold("Next available slots:")} ${dim(`(${timezone})`)}`, ...lines, more];
 }

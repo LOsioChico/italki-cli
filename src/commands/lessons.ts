@@ -3,6 +3,7 @@ import { getLessons, getAllLessons } from "../services/lesson";
 import { readConfig } from "../services/config";
 import { formatPrice, formatSessionLength } from "../constants";
 import { bold, dim, green, yellow } from "../lib/color";
+import { formatDateTime, timeAgo, timeUntil } from "../lib/time-ago";
 
 export default defineCommand({
   meta: { description: "Show your lesson history" },
@@ -58,14 +59,14 @@ export default defineCommand({
     for (const l of sliced) {
       const teacher = l.opposite_user_info?.nickname ?? "?";
       const start = l.session_obj?.session_start_time ?? "";
-      const date = start ? new Date(start).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" }) : "?";
-      const time = start ? new Date(start).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }) : "?";
+      const when = start ? formatDateTime(start, config.timezone_iana) : "?";
+      const rel = start ? (l.group === "completed" ? timeAgo(start) : timeUntil(start)) : "";
       const duration = formatSessionLength(l.duration);
       const price = formatPrice(l.total_price);
       const status = l.group === "completed" ? green("✓") : l.group === "upcoming" ? yellow("◯") : dim(l.group);
       const lang = l.language;
 
-      console.log(`${status}  ${bold(teacher)}  ${dim(`${date} ${time}`)}  ${dim(duration)}  ${dim(price)}  ${lang}`);
+      console.log(`${status}  ${bold(teacher)}  ${dim(`${when} (${rel})`)}  ${dim(duration)}  ${dim(price)}  ${lang}`);
     }
   },
 });

@@ -51,7 +51,7 @@ export default defineCommand({
     });
 
     if (schedule) {
-      lines.push(...formatTeacherSchedule(schedule, tz));
+      lines.push(...formatTeacherSchedule(schedule, tz, id));
     }
 
     // Hint: full runnable command = flags already used + flags not yet used

@@ -1,6 +1,7 @@
 import type { TeacherProfile } from "../schemas/teacher";
 import { formatPrice, formatSessionLength } from "../constants";
 import { bold, dim, green, yellow, cyan } from "../lib/color";
+import { formatDateTime, timeUntil } from "../lib/time-ago";
 
 function truncate(s: string, max: number): string {
   return s.length > max ? s.slice(0, max - 1) + "…" : s;
@@ -8,14 +9,7 @@ function truncate(s: string, max: number): string {
 
 function nextSlot(iso: string | null | undefined, timezone: string): string {
   if (!iso) return "—";
-  return new Date(iso).toLocaleString("en-US", {
-    timeZone: timezone,
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
+  return `${formatDateTime(iso, timezone)} (${timeUntil(iso)})`;
 }
 
 interface Row {

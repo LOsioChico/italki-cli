@@ -1,34 +1,20 @@
 import type { ScheduleResponse, TimeSlot } from "../schemas/schedule";
 import { bold, dim, cyan } from "../lib/color";
+import { formatDateTime, formatTimeOnly, timeUntil } from "../lib/time-ago";
 
 function formatTime(iso: string, timezone: string): string {
-  const d = new Date(iso);
-  return d.toLocaleString("en-US", {
-    timeZone: timezone,
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
-}
-
-function formatTimeOnly(iso: string, timezone: string): string {
-  const d = new Date(iso);
-  return d.toLocaleTimeString("en-US", {
-    timeZone: timezone,
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
+  return formatDateTime(iso, timezone);
 }
 
 function slotDuration(slot: TimeSlot): string {
   const start = new Date(slot.start_time).getTime();
   const end = new Date(slot.end_time).getTime();
   const hours = (end - start) / (1000 * 60 * 60);
-  return hours >= 1 ? `${hours}h` : `${(end - start) / (1000 * 60)}min`;
+  return hours >= 1 ? `${Math.round(hours * 10) / 10}h` : `${Math.round((end - start) / (1000 * 60))}min`;
+}
+
+function slotHours(slot: TimeSlot): number {
+  return (new Date(slot.end_time).getTime() - new Date(slot.start_time).getTime()) / (1000 * 60 * 60);
 }
 
 function dayKey(iso: string, timezone: string): string {
@@ -65,21 +51,28 @@ export function formatSchedule(response: ScheduleResponse, timezone: string, tea
     ? `${dim(`#${teacherId}`)}  ${bold(teacherName)} — ${bold("Availability")}`
     : bold("  Availability");
 
+  const totalHours = d.available_schedule.reduce((sum, s) => sum + slotHours(s), 0);
+  const totalLabel = totalHours > 0 ? `  ${dim("|")}  ${dim("Total time:")} ${totalHours % 1 === 0 ? `${totalHours}h` : `${totalHours.toFixed(1)}h`}` : "";
+
   const header: string[] = [
     title,
     dim(`  Times in ${timezone}`),
     `  ${dim("Advance booking:")} ${advanceHours}h minimum`,
-    `  ${dim("Available slots:")} ${d.available_schedule.length}  ${dim("|")}  ${dim("Booked sessions:")} ${d.teacher_lesson.length}`,
-    ...(d.closest_available_datetime ? [`  ${dim("Next available:")} ${formatTime(d.closest_available_datetime, timezone)}`] : []),
+    `  ${dim("Available slots:")} ${d.available_schedule.length}${totalLabel}  ${dim("|")}  ${dim("Booked sessions:")} ${d.teacher_lesson.length}`,
+    ...(d.closest_available_datetime ? [`  ${dim("Next available:")} ${timeUntil(d.closest_available_datetime)} (${formatTime(d.closest_available_datetime, timezone)})`] : []),
   ];
 
   const availableLines: string[] = d.available_schedule.length > 0
     ? [
         "", `  ${bold("Available:")}`,
-        ...groupSlotsByDay(d.available_schedule, timezone).flatMap((group) => [
-          `  ${cyan(group.day)}:`,
-          ...group.slots.map((s) => formatSlot(s, timezone)),
-        ]),
+        ...groupSlotsByDay(d.available_schedule, timezone).flatMap((group) => {
+          const dayHours = group.slots.reduce((sum, s) => sum + slotHours(s), 0);
+          const dayLabel = dayHours % 1 === 0 ? `${dayHours}h` : `${dayHours.toFixed(1)}h`;
+          return [
+            `  ${cyan(group.day)} ${dim(`(${dayLabel})`)}:`,
+            ...group.slots.map((s) => formatSlot(s, timezone)),
+          ];
+        }),
       ]
     : [];
 
