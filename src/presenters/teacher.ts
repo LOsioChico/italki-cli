@@ -68,13 +68,28 @@ function formatCourse(course: Course, showPackages: boolean): string[] {
 function formatStats(profile: TeacherProfile): string[] {
   const d = profile.data;
   const t = d.teacher_info;
+  const s = d.teacher_statistics;
 
-  const sessionStats = d.teacher_statistics?.finished_session_list?.length
+  const sessionStats = s?.finished_session_list?.length
     ? (() => {
-        const stats = d.teacher_statistics!.finished_session_list!;
-        const recent = stats.slice(-3).map((s) => `${MONTHS[s.month] ?? `month ${s.month}`}: ${s.data}`).join(", ");
+        const stats = s.finished_session_list!;
+        const recent = stats.slice(-3).map((st) => `${MONTHS[st.month] ?? `month ${st.month}`}: ${st.data}`).join(", ");
         return [`\n  ${bold("Recent sessions:")} ${recent}`];
       })()
+    : [];
+
+  const rateStats: string[] = [];
+  if (s?.response_rate_list?.length) {
+    const rates = s.response_rate_list.slice(-3).map((r) => `${Math.round(r.data * 100)}%`).join(" → ");
+    rateStats.push(`  ${dim("Response rate:")} ${rates}`);
+  }
+  if (s?.attendance_rate_list?.length) {
+    const rates = s.attendance_rate_list.slice(-3).map((r) => `${Math.round(r.data * 100)}%`).join(" → ");
+    rateStats.push(`  ${dim("Attendance:")} ${rates}`);
+  }
+
+  const cancelPolicy = t.cancel_policy
+    ? [`\n  ${bold("Cancel policy:")} ${t.cancel_policy}`]
     : [];
 
   const education = t.edu_info?.length
@@ -101,7 +116,7 @@ function formatStats(profile: TeacherProfile): string[] {
       })]
     : [];
 
-  return [...sessionStats, ...education, ...certifications, ...experience];
+  return [...sessionStats, ...rateStats, ...cancelPolicy, ...education, ...certifications, ...experience];
 }
 
 function exactTime(iso: string, timezone: string | undefined): string {
