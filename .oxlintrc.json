@@ -1,0 +1,13 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "jsPlugins": ["./lint/plugin.js"],
+  "rules": {
+    "italki/no-cross-layer-imports": "error",
+    "italki/no-default-export": "error",
+    "italki/no-classes-in-services": "error",
+    "italki/no-console-in-services": "error",
+    "italki/no-generic-filenames": "error",
+    "no-console": "off"
+  },
+  "ignorePatterns": ["node_modules", "dist", "lint/plugin.js"]
+}
