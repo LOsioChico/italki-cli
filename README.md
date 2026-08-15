@@ -51,7 +51,7 @@ bun run index.ts --help              # list all commands
 bun run index.ts <command> --help    # flags for a specific command
 ```
 
-**Output modes:** terminal → human-readable with colors (disable with `NO_COLOR=1`). Piped → JSON automatically, no flag needed.
+**Output modes:** human-readable with colors by default (disable with `NO_COLOR=1`). Add `--json` for raw JSON output (script/pipe consumers).
 
 ## MCP server
 
