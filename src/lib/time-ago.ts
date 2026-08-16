@@ -1,13 +1,22 @@
 // Relative time formatting — "3 days ago", "2 hours ago", "just now"
-export function timeAgo(date: Date | string | number): string {
+// Uses calendar-date comparison in the target timezone for day-level granularity.
+export function timeAgo(date: Date | string | number, timezone?: string): string {
   const d = new Date(date);
-  const seconds = Math.floor((Date.now() - d.getTime()) / 1000);
+  const now = new Date();
+  const seconds = Math.floor((now.getTime() - d.getTime()) / 1000);
   if (seconds < 60) return "just now";
   const minutes = Math.floor(seconds / 60);
   if (minutes < 60) return `${minutes} minute${minutes > 1 ? "s" : ""} ago`;
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours} hour${hours > 1 ? "s" : ""} ago`;
-  const days = Math.floor(hours / 24);
+
+  // Calendar-date comparison for day-level granularity
+  const dDate = d.toLocaleDateString("en-CA", { timeZone: timezone });
+  const nowDate = now.toLocaleDateString("en-CA", { timeZone: timezone });
+  const days = Math.round(
+    (new Date(nowDate + "T00:00:00Z").getTime() - new Date(dDate + "T00:00:00Z").getTime()) / 86400000,
+  );
+
+  if (days < 1) return `${hours} hour${hours > 1 ? "s" : ""} ago`;
   if (days < 30) return `${days} day${days > 1 ? "s" : ""} ago`;
   const months = Math.floor(days / 30);
   if (months < 12) return `${months} month${months > 1 ? "s" : ""} ago`;

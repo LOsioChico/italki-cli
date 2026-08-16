@@ -25,7 +25,7 @@ export default defineCommand({
     const tz = resolveTimezone(ctx.args.timezone as string | undefined, config, DEFAULT_TIMEZONE);
     const days = Math.min(Number(ctx.args.days) || 28, 90);
     const [schedule, teacher] = await Promise.all([
-      getSchedule(id, days),
+      getSchedule(id, days, tz),
       getTeacher(id).catch(() => null),
     ]);
 

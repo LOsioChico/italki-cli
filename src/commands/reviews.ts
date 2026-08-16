@@ -1,6 +1,8 @@
 import { defineCommand } from "citty";
 import { getReviews } from "../services/reviews";
 import { formatReviews } from "../presenters/reviews";
+import { DEFAULT_TIMEZONE } from "../constants";
+import { readConfig, resolveTimezone } from "../services/config";
 import { dim } from "../lib/color";
 
 export default defineCommand({
@@ -11,6 +13,7 @@ export default defineCommand({
     "page-size": { type: "string", description: "Reviews per page (default 10, max 100)" },
     language: { type: "string", description: "Filter by lesson language (e.g. english, spanish)" },
     "allow-empty": { type: "boolean", description: "Include reviews with no text (default: excluded)" },
+    timezone: { type: "string", description: "IANA timezone for review dates (e.g. America/Bogota)" },
     json: { type: "boolean", description: "Output as JSON" },
   },
   run: async (ctx) => {
@@ -20,6 +23,8 @@ export default defineCommand({
       process.exit(1);
     }
 
+    const config = await readConfig();
+    const tz = resolveTimezone(ctx.args.timezone as string | undefined, config, DEFAULT_TIMEZONE);
     const page = ctx.args.page ? Number(ctx.args.page) : 1;
     const pageSize = ctx.args["page-size"] ? Number(ctx.args["page-size"]) : 10;
     const language = ctx.args.language || undefined;
@@ -33,7 +38,7 @@ export default defineCommand({
       return;
     }
 
-    const lines = formatReviews(response, id, pageSize, language);
+    const lines = formatReviews(response, id, pageSize, language, tz);
     console.log(lines.join("\n"));
 
     const hints: string[] = [];

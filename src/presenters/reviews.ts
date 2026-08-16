@@ -3,21 +3,22 @@ import { bold, dim, yellow } from "../lib/color";
 import { wrapText } from "../lib/wrap";
 import { timeAgo } from "../lib/time-ago";
 
-function formatDate(iso: string): string {
+function formatDate(iso: string, timezone?: string): string {
   return new Date(iso).toLocaleDateString("en-US", {
+    timeZone: timezone,
     year: "numeric",
     month: "short",
     day: "numeric",
   });
 }
 
-function formatReview(review: Review): string[] {
+function formatReview(review: Review, timezone?: string): string[] {
   const u = review.user_info;
   const c = review.comment_info;
   const country = u.origin_country_id ?? "?";
   const lessons = review.lesson_count > 0 ? ` (${review.lesson_count} lessons)` : "";
-  const date = formatDate(c.create_time);
-  const ago = timeAgo(c.create_time);
+  const date = formatDate(c.create_time, timezone);
+  const ago = timeAgo(c.create_time, timezone);
   const content = c.content || "(no text)";
 
   const pick = c.is_reviews_up ? yellow("★ Teacher's pick  ") : "";
@@ -27,7 +28,7 @@ function formatReview(review: Review): string[] {
   ];
 }
 
-export function formatReviews(response: ReviewsResponse, id: number, pageSize: number, language?: string): string[] {
+export function formatReviews(response: ReviewsResponse, id: number, pageSize: number, language?: string, timezone?: string): string[] {
   const total = response.paging?.total ?? 0;
   const page = response.paging?.page ?? 1;
   const topTotal = response.data?.top_total ?? 0;
@@ -41,7 +42,7 @@ export function formatReviews(response: ReviewsResponse, id: number, pageSize: n
     return [header, "", dim("  No reviews on this page.")];
   }
 
-  const reviewLines = reviews.flatMap((r) => [...formatReview(r), ""]);
+  const reviewLines = reviews.flatMap((r) => [...formatReview(r, timezone), ""]);
   reviewLines.pop();
 
   const langFlag = language ? ` --language ${language}` : "";

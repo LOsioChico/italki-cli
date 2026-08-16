@@ -141,7 +141,7 @@ export function formatTeacher(
   const status = u.is_online
     ? green("online")
     : u.last_login_time
-      ? dim(`last seen ${timeAgo(u.last_login_time)} (${exactTime(u.last_login_time, opts.timezone)})`)
+      ? dim(`last seen ${timeAgo(u.last_login_time, opts.timezone)} (${exactTime(u.last_login_time, opts.timezone)})`)
       : dim("offline");
 
   const header: string[] = [

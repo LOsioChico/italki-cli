@@ -116,7 +116,7 @@ export function registerTools(server: McpServer): void {
 
       const [profile, schedule] = await Promise.all([
         getTeacher(args.id),
-        showSchedule ? getSchedule(args.id, 7).catch(() => null) : Promise.resolve(null),
+        showSchedule ? getSchedule(args.id, 7, tz).catch(() => null) : Promise.resolve(null),
       ]);
 
       if (args.json === true) return jsonResult(profile);
@@ -154,7 +154,7 @@ export function registerTools(server: McpServer): void {
       const days = Math.min(args.days ?? 28, 90);
 
       const [schedule, teacher] = await Promise.all([
-        getSchedule(args.id, days),
+        getSchedule(args.id, days, tz),
         getTeacher(args.id).catch(() => null),
       ]);
 
@@ -175,16 +175,19 @@ export function registerTools(server: McpServer): void {
         pageSize: z.number().optional().describe("Reviews per page (default 10, max 100)"),
         language: z.string().optional().describe("Filter by lesson language (e.g. english, spanish)"),
         allowEmpty: z.boolean().optional().describe("Include reviews with no text (default: excluded)"),
+        timezone: z.string().optional().describe("IANA timezone for review dates (e.g. America/Bogota)"),
         json: z.boolean().optional().describe("Output raw JSON instead of human-readable text"),
       },
     },
     async (args) => {
+      const config = await readConfig();
+      const tz = resolveTimezone(args.timezone, config, DEFAULT_TIMEZONE);
       const page = args.page ?? 1;
       const pageSize = args.pageSize ?? 10;
       const response = await getReviews(args.id, page, pageSize, args.language, args.allowEmpty);
 
       if (args.json === true) return jsonResult(response);
-      return textResult(formatReviews(response, args.id, pageSize, args.language));
+      return textResult(formatReviews(response, args.id, pageSize, args.language, tz));
     },
   );
 

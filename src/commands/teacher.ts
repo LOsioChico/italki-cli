@@ -30,7 +30,7 @@ export default defineCommand({
 
     const [profile, schedule] = await Promise.all([
       getTeacher(id),
-      showSchedule ? getSchedule(id, 7).catch(() => null) : Promise.resolve(null),
+      showSchedule ? getSchedule(id, 7, tz).catch(() => null) : Promise.resolve(null),
     ]);
 
     const useJson = ctx.args.json === true;

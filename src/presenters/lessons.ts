@@ -11,7 +11,7 @@ export function formatLessons(lessons: LessonItem[], timezone: string): string[]
     const teacher = l.opposite_user_info?.nickname ?? "?";
     const start = l.session_obj?.session_start_time ?? "";
     const when = start ? formatDateTime(start, timezone) : "?";
-    const rel = start ? (l.group === "completed" ? timeAgo(start) : timeUntil(start, timezone)) : "";
+    const rel = start ? (l.group === "completed" ? timeAgo(start, timezone) : timeUntil(start, timezone)) : "";
     const duration = formatSessionLength(l.duration);
     const price = formatPrice(l.total_price);
     const status = l.group === "completed" ? green("✓") : l.group === "upcoming" ? yellow("◯") : dim(l.group);
