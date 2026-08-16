@@ -9,7 +9,7 @@ function truncate(s: string, max: number): string {
 
 function nextSlot(iso: string | null | undefined, timezone: string): string {
   if (!iso) return "—";
-  return `${formatDateTime(iso, timezone)} (${timeUntil(iso)})`;
+  return `${formatDateTime(iso, timezone)} (${timeUntil(iso, timezone)})`;
 }
 
 interface Row {

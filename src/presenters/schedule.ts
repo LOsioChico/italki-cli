@@ -37,7 +37,7 @@ function groupSlotsByDay(slots: TimeSlot[], timezone: string): Array<{ day: stri
 function formatSlot(slot: TimeSlot, timezone: string): string {
   const start = formatTimeOnly(slot.start_time, timezone);
   const end = formatTimeOnly(slot.end_time, timezone);
-  const rel = timeUntil(slot.start_time);
+  const rel = timeUntil(slot.start_time, timezone);
   return `    ${start} – ${end} ${dim(`(${slotDuration(slot)}, ${rel})`)}`;
 }
 
@@ -58,7 +58,7 @@ export function formatSchedule(response: ScheduleResponse, timezone: string, tea
     dim(`  Times in ${timezone}`),
     `  ${dim("Advance booking:")} ${advanceHours}h minimum`,
     `  ${dim("Available slots:")} ${free.length}${totalLabel}  ${dim("|")}  ${dim("Booked sessions:")} ${d.teacher_lesson.length}`,
-    ...(d.closest_available_datetime ? [`  ${dim("Next available:")} ${timeUntil(d.closest_available_datetime)} (${formatTime(d.closest_available_datetime, timezone)})`] : []),
+    ...(d.closest_available_datetime ? [`  ${dim("Next available:")} ${timeUntil(d.closest_available_datetime, timezone)} (${formatTime(d.closest_available_datetime, timezone)})`] : []),
   ];
 
   const availableLines: string[] = free.length > 0

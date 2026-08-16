@@ -16,14 +16,24 @@ export function timeAgo(date: Date | string | number): string {
 }
 
 // Relative time for future dates — "today", "tomorrow", "in 2 days", "in 3 months"
-export function timeUntil(date: Date | string | number): string {
+// Uses calendar-date comparison in the target timezone, not elapsed hours.
+// A slot tomorrow at 09:00 is "tomorrow" even if it's only 23h from now at 10:00.
+export function timeUntil(date: Date | string | number, timezone?: string): string {
   const d = new Date(date);
-  const seconds = Math.floor((d.getTime() - Date.now()) / 1000);
-  if (seconds < 0) return timeAgo(date);
-  if (seconds < 3600) return "today";
-  const hours = Math.floor(seconds / 3600);
-  if (hours < 24) return "today";
-  const days = Math.floor(hours / 24);
+  const now = new Date();
+
+  // Extract calendar dates (YYYY-MM-DD) in the target timezone
+  const dDate = d.toLocaleDateString("en-CA", { timeZone: timezone });
+  const nowDate = now.toLocaleDateString("en-CA", { timeZone: timezone });
+
+  if (dDate === nowDate) return "today";
+
+  // Calendar days between the two dates (both at midnight UTC — same offset cancels out)
+  const days = Math.round(
+    (new Date(dDate + "T00:00:00Z").getTime() - new Date(nowDate + "T00:00:00Z").getTime()) / 86400000,
+  );
+
+  if (days < 0) return timeAgo(date);
   if (days === 1) return "tomorrow";
   if (days < 30) return `in ${days} days`;
   const months = Math.floor(days / 30);

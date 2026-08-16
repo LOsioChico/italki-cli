@@ -218,7 +218,7 @@ export function formatTeacherSchedule(schedule: ScheduleResponse, timezone: stri
   const lines = slots.map((s) => {
     const start = formatDateTime(s.start_time, timezone);
     const end = formatTimeOnly(s.end_time, timezone);
-    const rel = timeUntil(s.start_time);
+    const rel = timeUntil(s.start_time, timezone);
     const minutes = (new Date(s.end_time).getTime() - new Date(s.start_time).getTime()) / (1000 * 60);
     return `    ${start} – ${end} ${dim(`(${formatDuration(minutes)}, ${rel})`)}`;
   });
