@@ -2,15 +2,17 @@
 // See AGENTS.md "The separation rule (NON-NEGOTIABLE)"
 //
 // Rules:
-//   italki/no-cross-layer-imports  — services/ must not import from commands/, presenters/, @clack, citty
+//   italki/no-cross-layer-imports  — services/ must not import from commands/, presenters/, transforms/, @clack, citty
+//                                  — transforms/ must not import from services/, commands/, presenters/, @clack, citty
 //                                  — presenters/ must not import from services/, commands/, @clack, citty
-//                                  — schemas/ must not import from src/ at all
+//                                  — schemas/ must not import from src/ at all (constants allowed)
 //   italki/no-default-export       — named exports only (greppable, explicit)
 
 /** @type {Record<string, string>} */
 const BANNED_IN_SERVICES = [
   "commands",
   "presenters",
+  "transforms",
   "@clack/prompts",
   "citty",
 ];
@@ -23,6 +25,15 @@ const BANNED_IN_PRESENTERS = [
   "citty",
 ];
 
+/** @type {Record<string, string>} */
+const BANNED_IN_TRANSFORMS = [
+  "commands",
+  "presenters",
+  "services",
+  "@clack/prompts",
+  "citty",
+];
+
 /**
  * @param {string} filePath
  * @returns {string | null}
@@ -30,6 +41,7 @@ const BANNED_IN_PRESENTERS = [
 function getLayer(filePath) {
   if (filePath.includes("/services/")) return "services";
   if (filePath.includes("/presenters/")) return "presenters";
+  if (filePath.includes("/transforms/")) return "transforms";
   if (filePath.includes("/schemas/")) return "schemas";
   if (filePath.includes("/commands/")) return "commands";
   return null;
@@ -60,6 +72,7 @@ const noCrossLayerImports = {
     let banned = [];
     if (layer === "services") banned = BANNED_IN_SERVICES;
     else if (layer === "presenters") banned = BANNED_IN_PRESENTERS;
+    else if (layer === "transforms") banned = BANNED_IN_TRANSFORMS;
     else if (layer === "schemas") {
       // schemas/ must not import from any src/ layer
       return {
@@ -69,12 +82,13 @@ const noCrossLayerImports = {
             importPath.startsWith("../services") ||
             importPath.startsWith("../commands") ||
             importPath.startsWith("../presenters") ||
+            importPath.startsWith("../transforms") ||
             importPath.startsWith("./")
           ) {
             context.report({
               node,
               message:
-                "schemas/ must not import from services/, commands/, presenters/, or local files. Schemas are the foundation layer — no src/ imports allowed.",
+                "schemas/ must not import from services/, commands/, presenters/, transforms/, or local files. Schemas are the foundation layer — no src/ imports allowed.",
             });
           }
         },
