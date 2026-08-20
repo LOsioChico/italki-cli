@@ -12,5 +12,5 @@ All modules `runtime-verified`.
 
 | Gap | Impact | Plan |
 |---|---|---|
-| `--all` on unfiltered search takes ~15s | Expected — 44 pages, 50 concurrent, Zod parsing on 4296 records | None; document if users complain |
+| `--all` on unfiltered search takes ~15s | Expected — 44 pages, 50 concurrent, Zod parsing on ~4300 records (count grows daily) | None; document if users complain |
 | Booking (Phase 3) | `book` doesn't exist | Phase 3 — HTTP booking with `i_token` (needs HAR capture of real booking flow) |
