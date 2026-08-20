@@ -6,6 +6,10 @@
 > This documents the **API surface**, not just what the CLI implements. Endpoints marked ✅
 > are verified; not all have a corresponding CLI command or service yet. See `src/services/`
 > for what's actually wired into the CLI.
+>
+> **Counts are a snapshot.** Teacher counts (e.g. "4278 English teachers", "794 with US filter")
+> were accurate at verification time. The directory grows daily — treat them as order-of-magnitude
+> references, not live facts. Re-curl if you need current numbers.
 
 ## Base URLs
 

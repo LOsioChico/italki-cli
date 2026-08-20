@@ -80,6 +80,34 @@ bun run index.ts <command> --help    # flags for a specific command
 
 All tools return translated JSON by default (domain objects: dollars, tag names, minutes). Pass `text: true` for compact human-readable text.
 
+## Architecture
+
+4-layer separation, lint-enforced (`bun run verify`):
+
+```
+schemas/     zod contracts — API truth, no src/ imports
+services/    fetch + zod validate — no UI, no transforms, no commands
+transforms/  raw API → domain objects (cents→$, codes→names, units→min)
+presenters/  domain objects → ANSI text — no services, no commands
+commands/    citty CLI — wires services + transforms + presenters
+mcp/         MCP server — same wiring, JSON default, text=true opt-in
+```
+
+Rule: `services/` and `transforms/` never import up. This makes MCP, REST, or any future interface addable without touching services or transforms. Violations are build errors, not suggestions.
+
+### Data flow
+
+```
+CLI:           args → service.fetch → zod.parse → transform.translate → presenter.format → stdout
+CLI --json:    args → service.fetch → zod.parse → transform.translate → JSON(domain) → stdout
+MCP default:   call → service.fetch → zod.parse → transform.translate → JSON(domain) → text content
+MCP text=true: call → service.fetch → zod.parse → transform.translate → presenter.format → text content
+```
+
+CLI defaults to presenter text. MCP defaults to translated JSON (agents need all fields to reason, not a curated subset).
+
+See [AGENTS.md](./AGENTS.md) for the full operating contract.
+
 ## Tech stack
 
 | Tool | Why |
