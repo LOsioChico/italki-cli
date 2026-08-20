@@ -51,7 +51,7 @@ bun run index.ts --help              # list all commands
 bun run index.ts <command> --help    # flags for a specific command
 ```
 
-**Output modes:** human-readable with colors by default (disable with `NO_COLOR=1`). Add `--json` for raw JSON output (script/pipe consumers).
+**Output modes:** human-readable with colors by default (disable with `NO_COLOR=1`). Add `--json` for translated JSON output (dollars, tag names, minutes — for scripts/pipe consumers).
 
 ## MCP server
 
@@ -78,7 +78,7 @@ bun run index.ts <command> --help    # flags for a specific command
 | `get_whoami` | Profile + learning languages + analytics | Yes |
 | `get_lessons` | Lesson history with client-side filters | Yes |
 
-All tools return Zod-validated, human-readable text by default. Pass `json: true` for raw JSON.
+All tools return translated JSON by default (domain objects: dollars, tag names, minutes). Pass `text: true` for compact human-readable text.
 
 ## Tech stack
 

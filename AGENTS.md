@@ -46,24 +46,26 @@ track lessons — all programmable.
 ### The separation rule (NON-NEGOTIABLE)
 
 ```
-services/  →  schemas/ + lib/ + constants
-commands/  →  services/ + presenters/
-presenters/ →  schemas/ + constants + lib/
-mcp/       →  services/ + presenters/
-api/       →  services/ + presenters/ (when added)
+services/   →  schemas/ + lib/ + constants
+transforms/ →  schemas/ + lib/ + constants
+presenters/ →  transforms/ (types) + constants + lib/
+commands/   →  services/ + transforms/ + presenters/
+mcp/        →  services/ + transforms/ + presenters/
+api/        →  services/ + transforms/ (when added)
 ```
 
-`services/` never imports from `commands/`, `presenters/`, `@clack/prompts`, or any interface layer.
-This is what makes MCP, REST, or any future interface addable without touching services.
+`services/` never imports from `commands/`, `presenters/`, `transforms/`, `@clack/prompts`, or any interface layer.
+`transforms/` never imports from `services/`, `commands/`, `presenters/`, or any interface layer.
+This is what makes MCP, REST, or any future interface addable without touching services or transforms.
 
-If you're tempted to import `@clack/prompts` or `citty` inside `services/`, stop. You're breaking
-the separation. Services return data. Interfaces present it.
+If you're tempted to import `@clack/prompts` or `citty` inside `services/` or `transforms/`, stop. You're breaking
+the separation. Services fetch data. Transforms translate it. Presenters format it.
 
 **Enforced by oxlint** — custom rules in `lint/plugin.js`. Violations are build errors, not just prompt-level suggestions. Run `bun run verify` to check.
 
 | Rule | What it enforces |
 |---|---|
-| `italki/no-cross-layer-imports` | services/ must not import commands/, presenters/, or UI libs. presenters/ must not import services/, commands/, or UI libs. schemas/ must not import services/, commands/, presenters/, or local files (constants allowed) |
+| `italki/no-cross-layer-imports` | services/ must not import commands/, presenters/, transforms/, or UI libs. transforms/ must not import services/, commands/, presenters/, or UI libs. presenters/ must not import services/, commands/, or UI libs. schemas/ must not import services/, commands/, presenters/, transforms/, or local files (constants allowed) |
 | `italki/no-default-export` | Named exports only (commands/ exempt — citty requires default export) |
 | `italki/no-classes-in-services` | Services are pure functions, no classes |
 | `italki/no-console-in-services` | Services return data, don't print. Output is the presenter's job |
@@ -78,14 +80,18 @@ the separation. Services return data. Interfaces present it.
 
 ### Output rule
 
-Services return plain data. Presenters format it (translate codes to human-readable: cents→dollars, tag codes→names, etc). The `--json` flag is handled in `commands/` and `mcp/`, never in services. *(lint-enforced: `italki/no-console-in-services`)*
+Services return raw API data (zod-validated). Transforms translate it to domain objects (cents→dollars, tag codes→names, 15-min units→minutes, level numbers→CEFR names). Presenters format domain objects into ANSI text. The `--json` flag is handled in `commands/` and `mcp/`, never in services or transforms. *(lint-enforced: `italki/no-console-in-services`)*
 
 ```
-command parses args → service returns data → presenter formats output → stdout
-mcp tool calls service → presenter formats output → text content (or JSON if json=true)
+command parses args → service returns raw → transform translates → presenter formats → stdout
+command --json     → service returns raw → transform translates → JSON(domain) → stdout
+mcp tool (default) → service returns raw → transform translates → JSON(domain) → text content
+mcp tool (text=true) → service returns raw → transform translates → presenter formats → text content
 ```
 
-Presenter text is the default output everywhere — CLI and MCP. JSON is opt-in via `--json` flag (CLI) or `json: true` arg (MCP). ANSI colors auto-disable when stdout is not a TTY, so presenter text is plain in MCP/piped contexts.
+**CLI** defaults to presenter text. `--json` outputs translated domain JSON (dollars, names, minutes — not raw API codes).
+
+**MCP** defaults to translated JSON (agents need all fields to reason, not a curated subset). `text: true` opts into compact presenter text for simple queries. ANSI colors auto-disable when stdout is not a TTY, so presenter text is plain in MCP/piped contexts.
 
 ## API knowledge
 
@@ -105,7 +111,7 @@ Key facts that agents get wrong:
 - `teacher/{id}/schedule` supports `start_time` and `end_time` query params (`YYYY-MM-DD` or ISO 8601). Default: 7 days. CLI `schedule` command fetches 28 days, `teacher --schedule` fetches 7 days.
 - `teacher/{id}/schedule` `available_schedule` contains booked sessions — `teacher_lesson` overlaps with it by design. CLI subtracts booked sessions and filters sub-slots < 30 min (matches italki JS: 30-min cell splitting).
 
-**CLI abstraction layer:** The CLI uses user-facing slugs, not API codes. `--type pro` maps to `teacher_type: 1`. `--category conversation` maps to `course_category: ["CA005"]`. `--weekday mon,tue` maps to `weekday: [1,2]`. `--courses`/`--stats`/`--packages`/`--schedule` on `teacher` command are opt-in detail flags (default shows compact profile). `--sort`/`--limit`/`--all` on `search` command are client-side post-processing (API doesn't support sort). `--timezone` on `schedule` and `teacher --schedule` converts UTC slots to user's IANA timezone (priority: `--timezone` flag > `config.timezone_iana` from login > `DEFAULT_TIMEZONE`). `--page`/`--page-size` on `reviews` for pagination. Date/time display: shared `formatDateTime` in `lib/time-ago.ts` (24h, weekday, "at" separator, year for past events). Relative time via `timeAgo`/`timeUntil` in parentheses. Duration via `formatDuration` ("30min", "1h15min"). Translation happens in `services/search.ts` via maps in `constants.ts`. `docs/api-reference.md` documents raw API codes — that's API-level truth for service code. The CLI layer is the user-facing truth.
+**CLI abstraction layer:** The CLI uses user-facing slugs, not API codes. `--type pro` maps to `teacher_type: 1`. `--category conversation` maps to `course_category: ["CA005"]`. `--weekday mon,tue` maps to `weekday: [1,2]`. `--courses`/`--stats`/`--packages`/`--schedule` on `teacher` command are opt-in detail flags (default shows compact profile). `--sort`/`--limit`/`--all` on `search` command are client-side post-processing (API doesn't support sort). `--timezone` on `schedule` and `teacher --schedule` converts UTC slots to user's IANA timezone (priority: `--timezone` flag > `config.timezone_iana` from login > `DEFAULT_TIMEZONE`). `--page`/`--page-size` on `reviews` for pagination. Date/time display: shared `formatDateTime` in `lib/time-ago.ts` (24h, weekday, "at" separator, year for past events). Relative time via `timeAgo`/`timeUntil` in parentheses. Duration via `formatDuration` ("30min", "1h15min"). Translation happens in `transforms/` via maps in `constants.ts` (cents→dollars, tag codes→names, 15-min units→minutes, level numbers→CEFR). `docs/api-reference.md` documents raw API codes — that's API-level truth for service code. The transforms layer is the domain truth. The CLI layer is the user-facing truth.
 
 If you're unsure about an API behavior, test it with `curl` first (G13: curl first, code second).
 
@@ -113,12 +119,12 @@ If you're unsure about an API behavior, test it with `curl` first (G13: curl fir
 
 | Dep | What it solves | Why not alternatives |
 |---|---|---|
-| `zod` | Runtime validation of API responses. The italki API has 50+ nested fields. Schemas infer TS types. | Hand-written interfaces drift from reality. We verified 95 tag codes, 7 categories, 13 filters — the schema is the contract. |
+| `zod` | Runtime validation of API responses. The italki API has 50+ nested fields. Schemas infer TS types. | Hand-written interfaces drift from reality. We verified 99 tag codes, 7 categories, 13 filters — the schema is the contract. |
 | `citty` | CLI arg parsing + `--help` generation. | Commander is heavier. Hand-rolling is ~20 lines but no auto-help. Citty is ~3KB, works on Bun + Node. |
-| `@modelcontextprotocol/sdk` | MCP server over stdio for AI tools (Claude, Cursor). Same services + presenters as CLI, wrapped as JSON-RPC tools. | MCP gives structured tool calls + schemas. Both CLI and MCP default to presenter text; JSON is opt-in (`--json` / `json: true`). SDK is the official spec implementation. |
+| `@modelcontextprotocol/sdk` | MCP server over stdio for AI tools (Claude, Cursor). Same services + transforms + presenters as CLI, wrapped as JSON-RPC tools. | MCP gives structured tool calls + schemas. MCP defaults to translated JSON (agents need all fields); `text: true` opts into presenter text. CLI defaults to text; `--json` opts into translated JSON. SDK is the official spec implementation. |
 
 **What we deliberately did NOT add:**
-- **@clack/prompts** — was installed for interactive browsing, but nothing used it. Removed. Re-add when an interactive flow actually exists. Lint rules still ban it in services/ and presenters/.
+- **@clack/prompts** — was installed for interactive browsing, but nothing used it. Removed. Re-add when an interactive flow actually exists. Lint rules ban it in services/, transforms/, and presenters/.
 - **chalk** — use `Bun.color()` or raw ANSI codes. One less dep for 3-4 colors.
 - **Hono** — REST server solves no real problem. CLI covers terminal, MCP covers AI. Add later if needed (~30 lines).
 - **cli-table3** — table formatting can be hand-rolled for 4-5 columns. Add if tables get complex.
@@ -191,9 +197,9 @@ Before writing code, stop at the first rung that holds:
 
 **CLI:** `src/commands/` — citty-based, auto `--help`. `bun run index.ts --help` lists all commands.
 
-**MCP server:** `src/mcp/server.ts` + `src/mcp/tools.ts`. Imports from `src/services/` + `src/presenters/`. Registered as `italki mcp` command. 8 tools: search_teachers, get_teacher, get_schedule, get_reviews, compare_teachers (public, no auth); get_balance, get_whoami, get_lessons (require login — return isError if no saved session). All tools return presenter text by default; pass `json: true` for raw JSON. Runtime-verified over stdio.
+**MCP server:** `src/mcp/server.ts` + `src/mcp/tools.ts`. Imports from `src/services/` + `src/transforms/` + `src/presenters/`. Registered as `italki mcp` command. 8 tools: search_teachers, get_teacher, get_schedule, get_reviews, compare_teachers (public, no auth); get_balance, get_whoami, get_lessons (require login — return isError if no saved session). All tools return translated JSON by default (domain objects: dollars, tag names, minutes); pass `text: true` for compact human-readable text. Runtime-verified over stdio.
 
-**REST API (future):** Add `src/api/app.ts` with Hono. Import from `src/services/`. Zero changes to services. The separation rule makes REST additive, not invasive.
+**REST API (future):** Add `src/api/app.ts` with Hono. Import from `src/services/` + `src/transforms/`. Returns translated JSON (domain objects). Zero changes to services or transforms. The separation rule makes REST additive, not invasive.
 
 ## References
 

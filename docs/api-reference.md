@@ -1,6 +1,6 @@
 # italki API Reference
 
-> Reverse-engineered from public sources + direct testing. All endpoints verified Aug 14, 2026.
+> Reverse-engineered from public sources + direct testing. All endpoints verified Aug 14-15, 2026.
 > Every field documented here was observed in actual API responses.
 >
 > This documents the **API surface**, not just what the CLI implements. Endpoints marked ✅
