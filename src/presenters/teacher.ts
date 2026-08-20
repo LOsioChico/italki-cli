@@ -1,116 +1,92 @@
-import type { TeacherProfile } from "../schemas/teacher";
-import type { ScheduleResponse } from "../schemas/schedule";
-import { formatPrice, TAG_NAMES, formatSessionLength, LEVEL_MAP } from "../constants";
+import type { TeacherProfileResult, CourseResult, PriceTier } from "../transforms/teacher";
+import type { ScheduleResult } from "../transforms/schedule";
 import { bold, dim, green, yellow, cyan } from "../lib/color";
 import { wrapText } from "../lib/wrap";
-import { timeAgo, formatDateTime, formatTimeOnly, timeUntil, subtractBooked, formatDuration } from "../lib/time-ago";
+import { timeAgo, formatDateTime, formatTimeOnly, timeUntil, formatDuration } from "../lib/time-ago";
 
 const MONTHS = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-type Course = TeacherProfile["data"]["pro_course_detail"] extends (infer T)[] | undefined ? T : never;
-
-function tagLabel(code: string): string {
-  return TAG_NAMES[code as keyof typeof TAG_NAMES] ?? code;
+function formatPrice(dollars: number | null): string {
+  return dollars != null ? `$${dollars.toFixed(2)}` : "?";
 }
 
-function formatLanguages(langs: { language: string; level?: number | undefined }[] | undefined): string | null {
-  if (!langs?.length) return null;
-  return langs.map((l) => `${l.language} (${LEVEL_MAP[l.level ?? -1] ?? "?"})`).join(", ");
-}
+function formatPriceTiers(priceTiers: PriceTier[], showPackages: boolean): string[] {
+  if (!priceTiers.length) return [];
 
-function formatPriceTiers(
-  priceList: Course["price_list"],
-  showPackages: boolean,
-): string[] {
-  if (!priceList?.length) return [];
-
-  // Deduplicate by session_length, keep first entry
-  const seen = new Set<number>();
-  const tiers = priceList
-    .filter((p) => {
-      if (seen.has(p.session_length)) return false;
-      seen.add(p.session_length);
-      return true;
-    })
-    .sort((a, b) => a.session_length - b.session_length);
-
-  return tiers.map((p) => {
-    const len = formatSessionLength(p.session_length);
-    const standalone = green(formatPrice(p.session_price));
+  return priceTiers.map((p) => {
+    const len = `${p.sessionLengthMinutes}min`;
+    const standalone = green(formatPrice(p.sessionPrice));
     if (!showPackages) return `      ${dim(`${len}:`)} ${standalone}/session`;
 
-    const pkgPerSession = green(formatPrice(p.package_price / p.package_length));
-    const pkgTotal = green(formatPrice(p.package_price));
-    const discount = p.session_price - p.package_price / p.package_length;
-    const discountStr = discount > 0
-      ? dim(`  |  ${p.package_length}-pack `) + pkgTotal + dim(` (${pkgPerSession}/session, save ${formatPrice(discount)}/session)`)
-      : dim(`  |  ${p.package_length}-pack `) + pkgTotal;
+    const pkgPerSession = green(formatPrice(p.packagePerSession));
+    const pkgTotal = green(formatPrice(p.packagePrice));
+    const discountStr = p.packageDiscount > 0
+      ? dim(`  |  ${p.packageLength}-pack `) + pkgTotal + dim(` (${pkgPerSession}/session, save ${formatPrice(p.packageDiscount)}/session)`)
+      : dim(`  |  ${p.packageLength}-pack `) + pkgTotal;
     return `      ${dim(`${len}:`)} ${standalone}/session${discountStr}`;
   });
 }
 
-function formatCourse(course: Course, showPackages: boolean): string[] {
-  const tags = course.course_tags?.length
-    ? dim(` [${course.course_tags.map(tagLabel).join(", ")}]`)
+function formatCourse(course: CourseResult, showPackages: boolean): string[] {
+  const tags = course.tags.length
+    ? dim(` [${course.tags.join(", ")}]`)
     : "";
-  const sessionCount = course.session_count != null ? dim(`  |  ${course.session_count} sessions`) : "";
+  const sessionCount = course.sessionCount ? dim(`  |  ${course.sessionCount} sessions`) : "";
   const header = `    ${bold(course.title)}${tags}${sessionCount}`;
 
-  const priceLines = course.price_list?.length
-    ? formatPriceTiers(course.price_list, showPackages)
-    : course.session_price != null
-      ? [`      ${green(formatPrice(course.session_price))}/session`]
+  const priceLines = course.priceTiers.length
+    ? formatPriceTiers(course.priceTiers, showPackages)
+    : course.sessionPrice != null
+      ? [`      ${green(formatPrice(course.sessionPrice))}/session`]
       : [];
 
   return [header, ...priceLines];
 }
 
-function formatStats(profile: TeacherProfile): string[] {
-  const d = profile.data;
-  const t = d.teacher_info;
-  const s = d.teacher_statistics;
+function formatStats(profile: TeacherProfileResult): string[] {
+  const stats = profile.stats;
+  if (!stats) return [];
 
-  const sessionStats = s?.finished_session_list?.length
+  const sessionStats = stats.recentSessions.length
     ? (() => {
-        const stats = s.finished_session_list!;
-        const recent = stats.slice(-3).map((st) => `${MONTHS[st.month] ?? `month ${st.month}`}: ${st.data}`).join(", ");
+        const recent = stats.recentSessions.slice(-3).map((st) => `${MONTHS[st.month] ?? `month ${st.month}`}: ${st.sessions}`).join(", ");
         return [`\n  ${bold("Recent sessions:")} ${recent}`];
       })()
     : [];
 
   const rateStats: string[] = [];
-  if (s?.response_rate_list?.length) {
-    const rates = s.response_rate_list.slice(-3).map((r) => `${Math.round(r.data * 100)}%`).join(" → ");
+  if (stats.responseRates.length) {
+    const rates = stats.responseRates.slice(-3).map((r) => `${Math.round(r * 100)}%`).join(" → ");
     rateStats.push(`  ${dim("Response rate:")} ${rates}`);
   }
-  if (s?.attendance_rate_list?.length) {
-    const rates = s.attendance_rate_list.slice(-3).map((r) => `${Math.round(r.data * 100)}%`).join(" → ");
+  if (stats.attendanceRates.length) {
+    const rates = stats.attendanceRates.slice(-3).map((r) => `${Math.round(r * 100)}%`).join(" → ");
     rateStats.push(`  ${dim("Attendance:")} ${rates}`);
   }
 
-  const cancelPolicy = t.cancel_policy
-    ? [`\n  ${bold("Cancel policy:")} ${t.cancel_policy}`]
+  const cancelPolicy = profile.cancelPolicy
+    ? [`\n  ${bold("Cancel policy:")} ${profile.cancelPolicy}`]
     : [];
 
-  const education = t.edu_info?.length
-    ? [`\n  ${bold("Education:")}`, ...t.edu_info.map((e) => {
+  const education = profile.education.length
+    ? [`\n  ${bold("Education:")}`, ...profile.education.map((e) => {
         const parts = [e.institution, e.major].filter(Boolean);
         return `    ${parts.join(" — ") ?? "?"}`;
       })]
     : [];
 
-  const certifications = t.cert_info?.length
-    ? [`\n  ${bold("Certifications:")}`, ...t.cert_info.map((c) => {
-        const year = c.end_year ? dim(` (${c.end_year})`) : "";
+  const certifications = profile.certifications.length
+    ? [`\n  ${bold("Certifications:")}`, ...profile.certifications.map((c) => {
+        const year = c.endYear ? dim(` (${c.endYear})`) : "";
         const parts = [c.certificate, c.institution].filter(Boolean);
         return `    ${parts.join(" — ") ?? "?"}${year}`;
       })]
     : [];
 
-  const experience = t.teaching_experience?.length
-    ? [`\n  ${bold("Experience:")}`, ...t.teaching_experience.map((exp) => {
-        const end = exp.end_year === 2155 ? "present" : exp.end_year?.toString() ?? "";
-        const years = exp.start_year ? `${exp.start_year}-${end}` : "?";
+  const experience = profile.experience.length
+    ? [`\n  ${bold("Experience:")}`, ...profile.experience.map((exp) => {
+        const end = exp.isCurrent ? "present" : exp.endYear?.toString() ?? "";
+        const years = exp.startYear ? `${exp.startYear}-${end}` : "?";
         const parts = [exp.position, exp.institution].filter(Boolean);
         return `    ${dim(years)}  ${parts.join(" — ") ?? "?"}`;
       })]
@@ -124,69 +100,59 @@ function exactTime(iso: string, timezone: string | undefined): string {
 }
 
 export function formatTeacher(
-  profile: TeacherProfile,
+  profile: TeacherProfileResult,
   opts: { showPackages?: boolean; showCourses?: boolean; showStats?: boolean; timezone?: string } = {},
 ): string[] {
-  const d = profile.data;
-  const u = d.user_info;
-  const t = d.teacher_info;
-  const c = d.course_info;
-
-  const teacherType = u.is_pro ? cyan("PRO") : dim("TUTOR");
-  const rating = yellow(String(t.overall_rating ?? "?"));
-  const sessions = t.session_count ?? 0;
-  const students = t.student_count ?? 0;
+  const teacherType = profile.type === "pro" ? cyan("PRO") : dim("TUTOR");
+  const rating = yellow(String(profile.rating ?? "?"));
+  const sessions = profile.sessionCount;
+  const students = profile.studentCount;
 
   // Header — online teachers don't need "last seen"; offline shows relative + exact time
-  const status = u.is_online
+  const status = profile.isOnline
     ? green("online")
-    : u.last_login_time
-      ? dim(`last seen ${timeAgo(u.last_login_time, opts.timezone)} (${exactTime(u.last_login_time, opts.timezone)})`)
+    : profile.lastLogin
+      ? dim(`last seen ${timeAgo(profile.lastLogin, opts.timezone)} (${exactTime(profile.lastLogin, opts.timezone)})`)
       : dim("offline");
 
   const header: string[] = [
-    `${dim(`#${u.user_id}`)}  ${bold(u.nickname)} [${teacherType}]  (${status})`,
-    dim(`  ${u.origin_country_id}${u.origin_city_name ? `, ${u.origin_city_name}` : ""}${u.timezone ? `  |  ${u.timezone}` : ""}`),
+    `${dim(`#${profile.id}`)}  ${bold(profile.name)} [${teacherType}]  (${status})`,
+    dim(`  ${profile.country}${profile.city ? `, ${profile.city}` : ""}${profile.timezone ? `  |  ${profile.timezone}` : ""}`),
     `  ${dim("Rating:")} ${rating}  ${dim("|")}  ${dim("Sessions:")} ${sessions}  ${dim("|")}  ${dim("Students:")} ${students}`,
-    dim(`  Profile: https://www.italki.com/en/teacher/${u.user_id}`),
-    ...(t.video_url ? [dim(`  Intro video: ${t.video_url}`)] : []),
+    dim(`  Profile: ${profile.profileUrl}`),
+    ...(profile.introVideoUrl ? [dim(`  Intro video: ${profile.introVideoUrl}`)] : []),
   ];
 
-  const signature = t.short_signature ? [`  ${t.short_signature}`] : [];
+  const signature = profile.shortSignature ? [`  ${profile.shortSignature}`] : [];
 
   // About
-  const about = t.about_me
-    ? [`\n  ${bold("About:")}`, ...wrapText(t.about_me, "    ")]
+  const about = profile.about
+    ? [`\n  ${bold("About:")}`, ...wrapText(profile.about, "    ")]
     : [];
 
   // Languages
-  const teaches = formatLanguages(t.teach_language);
-  const speaks = formatLanguages(t.also_speak);
+  const teaches = profile.teaches.length ? profile.teaches.map((l) => `${l.language} (${l.level})`).join(", ") : null;
+  const speaks = profile.speaks.length ? profile.speaks.map((l) => `${l.language} (${l.level})`).join(", ") : null;
   const languages: string[] = [
     ...(teaches ? [`  Teaches: ${teaches}`] : []),
     ...(speaks ? [`  Also speaks: ${speaks}`] : []),
   ];
 
   // Trial
-  const trial = c?.has_trial && c.trial_price != null
-    ? [`  ${dim("Trial:")} ${green(formatPrice(c.trial_price))} ${dim(`for ${formatSessionLength(c.trial_length)}`)}${c.trial_session_count != null ? dim(`  |  ${c.trial_session_count} trials`) : ""}`]
+  const trial = profile.trial
+    ? [`  ${dim("Trial:")} ${green(formatPrice(profile.trial.price))} ${dim(`for ${profile.trial.lengthMinutes}min`)}${profile.trial.sessionCount != null ? dim(`  |  ${profile.trial.sessionCount} trials`) : ""}`]
     : [];
 
   // Features
-  const features: string[] = [
-    ...(t.instant_lesson_status ? ["instant lessons"] : []),
-    ...(t.recording_permission ? ["AI summaries"] : []),
-  ];
-  const featuresLine = features.length > 0 ? [`  ${dim("Features:")} ${cyan(features.join(", "))}`] : [];
+  const featuresLine = profile.features.length > 0 ? [`  ${dim("Features:")} ${cyan(profile.features.join(", "))}`] : [];
 
   // Courses (opt-in)
   const courseLines: string[] = opts.showCourses
     ? (() => {
-        const courses = [...(d.pro_course_detail ?? []), ...(d.tutor_course_detail ?? [])];
-        if (courses.length === 0) return [];
+        if (profile.courses.length === 0) return [];
         return [
-          `\n  ${bold(`Courses (${courses.length}):`)}`,
-          ...courses.flatMap((course) => ["", ...formatCourse(course, opts.showPackages === true)]),
+          `\n  ${bold(`Courses (${profile.courses.length}):`)}`,
+          ...profile.courses.flatMap((course) => ["", ...formatCourse(course, opts.showPackages === true)]),
         ];
       })()
     : [];
@@ -206,25 +172,21 @@ export function formatTeacher(
   ];
 }
 
-export function formatTeacherSchedule(schedule: ScheduleResponse, timezone: string, teacherId?: number): string[] {
-  // Subtract booked sessions from available slots, filter < 30 min
-  const all = subtractBooked(schedule.data.available_schedule, schedule.data.teacher_lesson);
-  const slots = all.slice(0, 3);
+export function formatTeacherSchedule(schedule: ScheduleResult, timezone: string, teacherId?: number): string[] {
+  const slots = schedule.freeSlots.slice(0, 3);
   if (slots.length === 0) return ["\n  No available slots in the next 7 days."];
 
-  const totalMinutes = all.reduce((sum, s) => sum + (new Date(s.end_time).getTime() - new Date(s.start_time).getTime()) / (1000 * 60), 0);
-  const totalLabel = formatDuration(totalMinutes);
+  const totalLabel = formatDuration(schedule.totalFreeMinutes);
 
   const lines = slots.map((s) => {
-    const start = formatDateTime(s.start_time, timezone);
-    const end = formatTimeOnly(s.end_time, timezone);
-    const rel = timeUntil(s.start_time, timezone);
-    const minutes = (new Date(s.end_time).getTime() - new Date(s.start_time).getTime()) / (1000 * 60);
-    return `    ${start} – ${end} ${dim(`(${formatDuration(minutes)}, ${rel})`)}`;
+    const start = formatDateTime(s.startTime, timezone);
+    const end = formatTimeOnly(s.endTime, timezone);
+    const rel = timeUntil(s.startTime, timezone);
+    return `    ${start} – ${end} ${dim(`(${formatDuration(s.durationMinutes)}, ${rel})`)}`;
   });
 
-  const more = all.length > 3
-    ? dim(`  …and ${all.length - 3} more slots (${totalLabel} total). See all: italki schedule ${teacherId ?? ""}`.trim())
+  const more = schedule.freeSlots.length > 3
+    ? dim(`  …and ${schedule.freeSlots.length - 3} more slots (${totalLabel} total). See all: italki schedule ${teacherId ?? ""}`.trim())
     : dim(`  ${totalLabel} total`);
 
   return [`\n  ${bold("Next available slots:")} ${dim(`(${timezone})`)}`, ...lines, more];

@@ -1,16 +1,18 @@
-import type { FinanceOverview } from "../schemas/finance";
-import { formatPrice } from "../constants";
+import type { BalanceResult } from "../transforms/balance";
+
+function formatPrice(dollars: number): string {
+  return `$${dollars.toFixed(2)}`;
+}
 
 /** Format the balance command output (credit balance). */
-export function formatBalance(balance: FinanceOverview): string[] {
-  const d = balance.data;
+export function formatBalance(balance: BalanceResult): string[] {
   const lines: string[] = [
-    `Available:  ${formatPrice(d.available_itc)}`,
-    `Total:      ${formatPrice(d.total_itc)}`,
+    `Available:  ${formatPrice(balance.available)}`,
+    `Total:      ${formatPrice(balance.total)}`,
   ];
-  if (d.session_pending_itc > 0) lines.push(`In sessions: ${formatPrice(d.session_pending_itc)}`);
-  if (d.frozen_itc > 0) lines.push(`Frozen:     ${formatPrice(d.frozen_itc)}`);
-  if (d.purchase_pending_itc > 0) lines.push(`Pending:    ${formatPrice(d.purchase_pending_itc)}`);
-  if (d.available_coupons > 0) lines.push(`Coupons:    ${d.available_coupons}`);
+  if (balance.inSessions > 0) lines.push(`In sessions: ${formatPrice(balance.inSessions)}`);
+  if (balance.frozen > 0) lines.push(`Frozen:     ${formatPrice(balance.frozen)}`);
+  if (balance.pendingPurchase > 0) lines.push(`Pending:    ${formatPrice(balance.pendingPurchase)}`);
+  if (balance.coupons > 0) lines.push(`Coupons:    ${balance.coupons}`);
   return lines;
 }

@@ -1,6 +1,10 @@
-import type { SearchResponse, SearchFilters } from "../schemas/search";
-import { formatPrice } from "../constants";
+import type { SearchResult, TeacherResult } from "../transforms/search";
+import type { SearchFilters } from "../schemas/search";
 import { bold, dim, green, yellow, cyan } from "../lib/color";
+
+function formatPrice(dollars: number | null): string {
+  return dollars != null ? `$${dollars.toFixed(2)}` : "?";
+}
 
 function filterFlags(filters: SearchFilters): string {
   const parts: string[] = [];
@@ -20,17 +24,36 @@ function filterFlags(filters: SearchFilters): string {
   return parts.join(" ");
 }
 
-export function formatSearch(result: SearchResponse, filters: SearchFilters, limit?: number): string[] {
-  const total = result.paging?.total ?? 0;
-  const teachers = limit && limit > 0 ? (result.data ?? []).slice(0, limit) : (result.data ?? []);
+function formatTeacherLine(t: TeacherResult): string {
+  const id = t.id;
+  const name = t.name;
+  const pro = t.type === "pro" ? cyan("PRO") : dim("TUTOR");
+  const price = green(formatPrice(t.priceFrom));
+  const country = t.country;
+  const rating = t.rating;
+  const sessions = t.sessionCount;
+  const hasTrial = t.hasTrial;
+  const trialPrice = t.trialPrice;
+
+  const ratingStr = rating != null ? ` ${yellow(`★${rating}`)}` : dim(" new");
+  const sessionsStr = sessions ? dim(` ${sessions} sessions`) : "";
+  const trialStr = hasTrial
+    ? cyan(` trial${trialPrice != null ? ` ${formatPrice(trialPrice)}` : ""}`)
+    : "";
+  return `  ${dim(`#${id}`)}  ${bold(name)} [${pro}] ${dim(`from ${country} — from`)} ${price}${ratingStr}${sessionsStr}${trialStr}`;
+}
+
+export function formatSearch(result: SearchResult, filters: SearchFilters, limit?: number): string[] {
+  const total = result.paging.total;
+  const teachers = limit && limit > 0 ? result.teachers.slice(0, limit) : result.teachers;
 
   // Echo active filters in user-facing terms
   const activeFilters: Array<[boolean, string]> = [
     [!!filters.teacherType, `type=${filters.teacherType}`],
     [!!filters.originCountry, `country=${filters.originCountry?.join(",")}`],
     [!!filters.speaks, `speaks=${filters.speaks?.join(",")}`],
-    [!!filters.maxPrice, `max=${formatPrice(filters.maxPrice)}`],
-    [!!filters.minPrice, `min=${formatPrice(filters.minPrice)}`],
+    [!!filters.maxPrice, `max=$${(filters.maxPrice! / 100).toFixed(2)}`],
+    [!!filters.minPrice, `min=$${(filters.minPrice! / 100).toFixed(2)}`],
     [!!filters.isNative, "native"],
     [!!filters.category, `category=${filters.category?.join(",")}`],
     [!!filters.tags, `tags=${filters.tags?.join(",")}`],
@@ -48,26 +71,9 @@ export function formatSearch(result: SearchResponse, filters: SearchFilters, lim
 
   const header = bold(`Found ${total} ${filters.language} teachers`) + (filterStr ? dim(` (${filterStr})`) : "");
 
-  const teacherLines = teachers.map((t) => {
-    const id = t.user_info?.user_id ?? "?";
-    const name = t.user_info?.nickname ?? "?";
-    const pro = t.user_info?.is_pro ? cyan("PRO") : dim("TUTOR");
-    const price = green(formatPrice(t.course_info?.min_price));
-    const country = t.user_info?.origin_country_id ?? "?";
-    const rating = t.teacher_info?.overall_rating;
-    const sessions = t.teacher_info?.session_count;
-    const hasTrial = t.course_info?.has_trial;
+  const teacherLines = teachers.map(formatTeacherLine);
 
-    const ratingStr = rating && Number(rating) > 0 ? ` ${yellow(`★${rating}`)}` : dim(" new");
-    const sessionsStr = sessions ? dim(` ${sessions} sessions`) : "";
-    const trialPrice = t.course_info?.trial_price;
-    const trialStr = hasTrial
-      ? cyan(` trial${trialPrice != null ? ` ${formatPrice(trialPrice)}` : ""}`)
-      : "";
-    return `  ${dim(`#${id}`)}  ${bold(name)} [${pro}] ${dim(`from ${country} — from`)} ${price}${ratingStr}${sessionsStr}${trialStr}`;
-  });
-
-  const pagination = result.paging?.has_next
+  const pagination = result.paging.hasNext
     ? ["", dim(`  Next page: italki search ${filters.language}${filterFlags(filters) ? ` ${filterFlags(filters)}` : ""} --page ${result.paging.page + 1}`)]
     : [];
 
