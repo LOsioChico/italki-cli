@@ -1,14 +1,6 @@
 import { API_BASE, API_HEADERS } from "../constants";
 import { reviewsResponseSchema, type ReviewsResponse } from "../schemas/reviews";
 
-export interface ReviewsParams {
-  id: number;
-  page?: number;
-  pageSize?: number;
-  language?: string;
-  allowEmpty?: boolean;
-}
-
 export async function getReviews(
   id: number,
   page = 1,

@@ -73,18 +73,6 @@ export const TAG_NAMES = {
   MHP111: "3-6 years", MHP112: "7-12 years", MHP113: "13-15 years", MHP114: "16+ years",
 } as const;
 
-// Session length is in 15-min units: 2=30min, 3=45min, 4=60min, 6=90min
-export function formatSessionLength(units: number | undefined): string {
-  if (units == null) return "?";
-  return `${units * 15}min`;
-}
-
-// Price is in cents (API), display in dollars
-export function formatPrice(cents: number | undefined): string {
-  if (cents == null) return "?";
-  return `$${(cents / 100).toFixed(2)}`;
-}
-
 // Language level mapping (1-7, used by teacher profiles and user foundation)
 export const LEVEL_MAP: Record<number, string> = {
   1: "A1", 2: "A2", 3: "B1", 4: "B2", 5: "C1", 6: "C2", 7: "Native",
