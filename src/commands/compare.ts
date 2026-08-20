@@ -1,5 +1,6 @@
 import { defineCommand } from "citty";
 import { getTeacher } from "../services/teacher";
+import { transformTeacher } from "../transforms/teacher";
 import { formatCompare } from "../presenters/compare";
 import { DEFAULT_TIMEZONE } from "../constants";
 import { readConfig, resolveTimezone } from "../services/config";
@@ -34,13 +35,14 @@ export default defineCommand({
       process.exit(1);
     }
 
+    const transformed = profiles.map(transformTeacher);
     const useJson = ctx.args.json === true;
 
     if (useJson) {
-      console.log(JSON.stringify(profiles, null, 2));
+      console.log(JSON.stringify(transformed, null, 2));
       return;
     }
 
-    console.log(formatCompare(profiles, tz).join("\n"));
+    console.log(formatCompare(transformed, tz).join("\n"));
   },
 });

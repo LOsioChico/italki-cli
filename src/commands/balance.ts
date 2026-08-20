@@ -1,5 +1,6 @@
 import { defineCommand } from "citty";
 import { getBalance } from "../services/finance";
+import { transformBalance } from "../transforms/balance";
 import { readConfig } from "../services/config";
 import { formatBalance } from "../presenters/balance";
 import { dim } from "../lib/color";
@@ -17,14 +18,15 @@ export default defineCommand({
     }
 
     const balance = await getBalance(config);
+    const transformed = transformBalance(balance);
     const useJson = ctx.args.json === true;
 
     if (useJson) {
-      console.log(JSON.stringify(balance.data, null, 2));
+      console.log(JSON.stringify(transformed, null, 2));
       return;
     }
 
-    const lines = formatBalance(balance);
+    const lines = formatBalance(transformed);
     console.log(lines.join("\n"));
     console.log("");
     console.log(dim("  More: italki lessons  |  italki whoami"));

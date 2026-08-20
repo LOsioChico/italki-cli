@@ -1,5 +1,6 @@
 import { defineCommand } from "citty";
 import { getFoundation, getAnalytics } from "../services/user";
+import { transformWhoami } from "../transforms/whoami";
 import { readConfig } from "../services/config";
 import { formatWhoami } from "../presenters/whoami";
 import { dim } from "../lib/color";
@@ -21,14 +22,15 @@ export default defineCommand({
       getAnalytics(config).catch(() => null),
     ]);
 
+    const transformed = transformWhoami(foundation, analytics);
     const useJson = ctx.args.json === true;
 
     if (useJson) {
-      console.log(JSON.stringify({ foundation: foundation.data, analytics }, null, 2));
+      console.log(JSON.stringify(transformed, null, 2));
       return;
     }
 
-    const lines = formatWhoami(foundation, analytics);
+    const lines = formatWhoami(transformed);
     console.log(lines.join("\n"));
     console.log("");
     console.log(dim("  More: italki lessons  |  italki balance"));

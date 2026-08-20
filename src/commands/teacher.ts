@@ -1,6 +1,8 @@
 import { defineCommand } from "citty";
 import { getTeacher } from "../services/teacher";
 import { getSchedule } from "../services/schedule";
+import { transformTeacher } from "../transforms/teacher";
+import { transformSchedule } from "../transforms/schedule";
 import { formatTeacher, formatTeacherSchedule } from "../presenters/teacher";
 import { DEFAULT_TIMEZONE } from "../constants";
 import { readConfig, resolveTimezone } from "../services/config";
@@ -33,24 +35,29 @@ export default defineCommand({
       showSchedule ? getSchedule(id, 7, tz).catch(() => null) : Promise.resolve(null),
     ]);
 
+    const transformed = transformTeacher(profile);
+    const transformedSchedule = schedule ? transformSchedule(schedule) : null;
     const useJson = ctx.args.json === true;
 
     if (useJson) {
-      console.log(JSON.stringify(profile, null, 2));
+      const output = transformedSchedule
+        ? { ...transformed, schedule: transformedSchedule }
+        : transformed;
+      console.log(JSON.stringify(output, null, 2));
       return;
     }
 
     const showCourses = ctx.args.courses === true || ctx.args.packages === true;
 
-    const lines = formatTeacher(profile, {
+    const lines = formatTeacher(transformed, {
       showPackages: ctx.args.packages === true,
       showCourses,
       showStats: ctx.args.stats === true,
       timezone: tz,
     });
 
-    if (schedule) {
-      lines.push(...formatTeacherSchedule(schedule, tz, id));
+    if (transformedSchedule) {
+      lines.push(...formatTeacherSchedule(transformedSchedule, tz, id));
     }
 
     // Hint: suggest flags not yet used (don't repeat what user already passed)

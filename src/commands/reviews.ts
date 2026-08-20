@@ -1,5 +1,6 @@
 import { defineCommand } from "citty";
 import { getReviews } from "../services/reviews";
+import { transformReviews } from "../transforms/reviews";
 import { formatReviews } from "../presenters/reviews";
 import { DEFAULT_TIMEZONE } from "../constants";
 import { readConfig, resolveTimezone } from "../services/config";
@@ -31,14 +32,15 @@ export default defineCommand({
     const allowEmpty = ctx.args["allow-empty"] === true;
     const response = await getReviews(id, page, pageSize, language, allowEmpty);
 
+    const transformed = transformReviews(response);
     const useJson = ctx.args.json === true;
 
     if (useJson) {
-      console.log(JSON.stringify(response, null, 2));
+      console.log(JSON.stringify(transformed, null, 2));
       return;
     }
 
-    const lines = formatReviews(response, id, pageSize, language, tz);
+    const lines = formatReviews(transformed, id, pageSize, language, tz);
     console.log(lines.join("\n"));
 
     const hints: string[] = [];

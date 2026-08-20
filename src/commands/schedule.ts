@@ -1,6 +1,7 @@
 import { defineCommand } from "citty";
 import { getSchedule } from "../services/schedule";
 import { getTeacher } from "../services/teacher";
+import { transformSchedule } from "../transforms/schedule";
 import { formatSchedule } from "../presenters/schedule";
 import { DEFAULT_TIMEZONE } from "../constants";
 import { readConfig, resolveTimezone } from "../services/config";
@@ -29,15 +30,16 @@ export default defineCommand({
       getTeacher(id).catch(() => null),
     ]);
 
+    const transformed = transformSchedule(schedule);
     const useJson = ctx.args.json === true;
 
     if (useJson) {
-      console.log(JSON.stringify(schedule, null, 2));
+      console.log(JSON.stringify(transformed, null, 2));
       return;
     }
 
     const teacherName = teacher?.data?.user_info?.nickname;
-    const lines = formatSchedule(schedule, tz, teacherName, id);
+    const lines = formatSchedule(transformed, tz, teacherName, id);
     console.log(lines.join("\n"));
 
     const hints: string[] = [];

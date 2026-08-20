@@ -1,5 +1,6 @@
 import { defineCommand } from "citty";
 import { getLessons, getAllLessons } from "../services/lesson";
+import { transformLessons } from "../transforms/lessons";
 import { readConfig } from "../services/config";
 import { formatLessons } from "../presenters/lessons";
 import { dim } from "../lib/color";
@@ -45,17 +46,19 @@ export default defineCommand({
       console.error("Warning: reached 1000-lesson safety cap. Older lessons may exist beyond this limit.");
     }
 
+    const transformed = transformLessons(sliced);
+
     if (useJson) {
-      console.log(JSON.stringify(sliced, null, 2));
+      console.log(JSON.stringify(transformed, null, 2));
       return;
     }
 
-    if (sliced.length === 0) {
+    if (transformed.length === 0) {
       console.log("No lessons found.");
       return;
     }
 
-    const lines = formatLessons(sliced, config.timezone_iana);
+    const lines = formatLessons(transformed, config.timezone_iana);
     console.log(lines.join("\n"));
 
     const hints: string[] = [];

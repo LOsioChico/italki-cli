@@ -9,6 +9,13 @@ import { getFoundation, getAnalytics } from "../services/user";
 import { getLessons, getAllLessons } from "../services/lesson";
 import { readConfig, resolveTimezone } from "../services/config";
 import { DEFAULT_TIMEZONE } from "../constants";
+import { transformSearch } from "../transforms/search";
+import { transformTeacher } from "../transforms/teacher";
+import { transformSchedule } from "../transforms/schedule";
+import { transformReviews } from "../transforms/reviews";
+import { transformLessons } from "../transforms/lessons";
+import { transformBalance } from "../transforms/balance";
+import { transformWhoami } from "../transforms/whoami";
 import { formatSearch } from "../presenters/search";
 import { formatTeacher, formatTeacherSchedule } from "../presenters/teacher";
 import { formatSchedule } from "../presenters/schedule";
@@ -40,7 +47,7 @@ export function registerTools(server: McpServer): void {
   server.registerTool(
     "search_teachers",
     {
-      description: "Search italki teachers by language with server-side filters. Sort is client-side (the API ignores sort_by). Use all=true to fetch all pages before sorting.",
+      description: "Search italki teachers by language with server-side filters. Sort is client-side (the API ignores sort_by). Use all=true to fetch all pages before sorting. Returns translated JSON by default (dollars, tag names, minutes). Pass text=true for compact human-readable output.",
       inputSchema: {
         language: z.string().describe("Language slug, e.g. english, spanish, chinese"),
         type: z.enum(["pro", "tutor"]).optional().describe("pro = professional teacher, tutor = community tutor"),
@@ -60,7 +67,7 @@ export function registerTools(server: McpServer): void {
         all: z.boolean().optional().describe("Fetch all pages (batched, rate-limited) before sorting/limiting"),
         sort: z.enum(["rating", "price", "sessions", "name"]).optional().describe("Client-side sort"),
         limit: z.number().optional().describe("Return only the first N results"),
-        json: z.boolean().optional().describe("Output raw JSON instead of human-readable text"),
+        text: z.boolean().optional().describe("Output compact human-readable text instead of JSON"),
       },
     },
     async (args) => {
@@ -86,19 +93,21 @@ export function registerTools(server: McpServer): void {
         : await searchTeachers(filters, args.page ?? 1);
 
       if (args.sort) result = sortTeachers(result, args.sort as SearchSort);
-      if (args.limit && args.limit > 0 && result.data) {
-        result = { ...result, data: result.data.slice(0, args.limit) };
+
+      const transformed = transformSearch(result);
+      if (args.limit && args.limit > 0) {
+        transformed.teachers = transformed.teachers.slice(0, args.limit);
       }
 
-      if (args.json === true) return jsonResult(result);
-      return textResult(formatSearch(result, filters, args.limit));
+      if (args.text === true) return textResult(formatSearch(transformed, filters, args.limit));
+      return jsonResult(transformed);
     },
   );
 
   server.registerTool(
     "get_teacher",
     {
-      description: "Get a teacher's full profile: bio, languages, courses with pricing, stats, education, certifications.",
+      description: "Get a teacher's full profile: bio, languages, courses with pricing, stats, education, certifications. Returns translated JSON by default (dollars, tag names, level names, minutes). Pass text=true for human-readable output.",
       inputSchema: {
         id: z.number().describe("Teacher ID (from search results)"),
         courses: z.boolean().optional().describe("Show course list with pricing"),
@@ -106,7 +115,7 @@ export function registerTools(server: McpServer): void {
         stats: z.boolean().optional().describe("Show session stats, education, certifications, experience"),
         schedule: z.boolean().optional().describe("Show next 3 available time slots"),
         timezone: z.string().optional().describe("IANA timezone for schedule slots (default: America/Bogota)"),
-        json: z.boolean().optional().describe("Output raw JSON instead of human-readable text"),
+        text: z.boolean().optional().describe("Output human-readable text instead of JSON"),
       },
     },
     async (args) => {
@@ -119,33 +128,41 @@ export function registerTools(server: McpServer): void {
         showSchedule ? getSchedule(args.id, 7, tz).catch(() => null) : Promise.resolve(null),
       ]);
 
-      if (args.json === true) return jsonResult(profile);
+      const transformed = transformTeacher(profile);
+      const transformedSchedule = schedule ? transformSchedule(schedule) : null;
 
-      const showCourses = args.courses === true || args.packages === true;
-      const lines = formatTeacher(profile, {
-        showPackages: args.packages === true,
-        showCourses,
-        showStats: args.stats === true,
-        timezone: tz,
-      });
+      if (args.text === true) {
+        const showCourses = args.courses === true || args.packages === true;
+        const lines = formatTeacher(transformed, {
+          showPackages: args.packages === true,
+          showCourses,
+          showStats: args.stats === true,
+          timezone: tz,
+        });
 
-      if (schedule) {
-        lines.push(...formatTeacherSchedule(schedule, tz, args.id));
+        if (transformedSchedule) {
+          lines.push(...formatTeacherSchedule(transformedSchedule, tz, args.id));
+        }
+
+        return textResult(lines);
       }
 
-      return textResult(lines);
+      const output = transformedSchedule
+        ? { ...transformed, schedule: transformedSchedule }
+        : transformed;
+      return jsonResult(output);
     },
   );
 
   server.registerTool(
     "get_schedule",
     {
-      description: "Get a teacher's availability calendar. Times are UTC — convert to the student's timezone yourself. available_schedule contains booked sessions; subtract teacher_lesson overlaps to get free time.",
+      description: "Get a teacher's availability calendar. Returns translated JSON by default: free slots (booked sessions subtracted), booked slots, advance booking hours, total free minutes. Pass text=true for human-readable output grouped by day.",
       inputSchema: {
         id: z.number().describe("Teacher ID"),
         days: z.number().optional().describe("Days to fetch (default 28, max 90)"),
         timezone: z.string().optional().describe("IANA timezone (e.g. America/Bogota, Asia/Tokyo)"),
-        json: z.boolean().optional().describe("Output raw JSON instead of human-readable text"),
+        text: z.boolean().optional().describe("Output human-readable text instead of JSON"),
       },
     },
     async (args) => {
@@ -158,17 +175,20 @@ export function registerTools(server: McpServer): void {
         getTeacher(args.id).catch(() => null),
       ]);
 
-      if (args.json === true) return jsonResult(schedule);
+      const transformed = transformSchedule(schedule);
 
-      const teacherName = teacher?.data?.user_info?.nickname;
-      return textResult(formatSchedule(schedule, tz, teacherName, args.id));
+      if (args.text === true) {
+        const teacherName = teacher?.data?.user_info?.nickname;
+        return textResult(formatSchedule(transformed, tz, teacherName, args.id));
+      }
+      return jsonResult(transformed);
     },
   );
 
   server.registerTool(
     "get_reviews",
     {
-      description: "Get a teacher's student reviews, paginated (max 100 per page). Teacher's picks are surfaced first. Filter by lesson language with the language param.",
+      description: "Get a teacher's student reviews, paginated (max 100 per page). Teacher's picks are surfaced first. Filter by lesson language with the language param. Returns translated JSON by default. Pass text=true for human-readable output.",
       inputSchema: {
         id: z.number().describe("Teacher ID"),
         page: z.number().optional().describe("Page number (default 1)"),
@@ -176,7 +196,7 @@ export function registerTools(server: McpServer): void {
         language: z.string().optional().describe("Filter by lesson language (e.g. english, spanish)"),
         allowEmpty: z.boolean().optional().describe("Include reviews with no text (default: excluded)"),
         timezone: z.string().optional().describe("IANA timezone for review dates (e.g. America/Bogota)"),
-        json: z.boolean().optional().describe("Output raw JSON instead of human-readable text"),
+        text: z.boolean().optional().describe("Output human-readable text instead of JSON"),
       },
     },
     async (args) => {
@@ -186,19 +206,21 @@ export function registerTools(server: McpServer): void {
       const pageSize = args.pageSize ?? 10;
       const response = await getReviews(args.id, page, pageSize, args.language, args.allowEmpty);
 
-      if (args.json === true) return jsonResult(response);
-      return textResult(formatReviews(response, args.id, pageSize, args.language, tz));
+      const transformed = transformReviews(response);
+
+      if (args.text === true) return textResult(formatReviews(transformed, args.id, pageSize, args.language, tz));
+      return jsonResult(transformed);
     },
   );
 
   server.registerTool(
     "compare_teachers",
     {
-      description: "Fetch 2+ teacher profiles in parallel for side-by-side comparison.",
+      description: "Fetch 2+ teacher profiles in parallel for side-by-side comparison. Returns translated JSON array by default. Pass text=true for a comparison table.",
       inputSchema: {
         ids: z.array(z.number()).min(2).describe("Teacher IDs to compare"),
         timezone: z.string().optional().describe("IANA timezone for next-slot times (default: America/Bogota)"),
-        json: z.boolean().optional().describe("Output raw JSON instead of human-readable text"),
+        text: z.boolean().optional().describe("Output human-readable comparison table instead of JSON"),
       },
     },
     async (args) => {
@@ -209,18 +231,22 @@ export function registerTools(server: McpServer): void {
         .filter((r): r is PromiseFulfilledResult<Awaited<ReturnType<typeof getTeacher>>> => r.status === "fulfilled")
         .map((r) => r.value);
 
-      if (args.json === true) return jsonResult(profiles);
-      if (profiles.length < 2) return textResult(["Need at least 2 valid teacher IDs to compare."]);
-      return textResult(formatCompare(profiles, tz));
+      const transformed = profiles.map(transformTeacher);
+
+      if (args.text === true) {
+        if (transformed.length < 2) return textResult(["Need at least 2 valid teacher IDs to compare."]);
+        return textResult(formatCompare(transformed, tz));
+      }
+      return jsonResult(transformed);
     },
   );
 
   server.registerTool(
     "get_balance",
     {
-      description: "Get the authenticated student's italki credit balance. Requires login (run 'italki login' first).",
+      description: "Get the authenticated student's italki credit balance (in dollars). Requires login (run 'italki login' first). Returns JSON by default. Pass text=true for human-readable output.",
       inputSchema: {
-        json: z.boolean().optional().describe("Output raw JSON instead of human-readable text"),
+        text: z.boolean().optional().describe("Output human-readable text instead of JSON"),
       },
     },
     async (args) => {
@@ -228,17 +254,19 @@ export function registerTools(server: McpServer): void {
       if (!config) return notLoggedInResult();
       const balance = await getBalance(config);
 
-      if (args.json === true) return jsonResult(balance.data);
-      return textResult(formatBalance(balance));
+      const transformed = transformBalance(balance);
+
+      if (args.text === true) return textResult(formatBalance(transformed));
+      return jsonResult(transformed);
     },
   );
 
   server.registerTool(
     "get_whoami",
     {
-      description: "Get the authenticated student's profile (nickname, email, timezone, premium status, learning languages) and learning analytics (total lessons, hours, streaks). Requires login.",
+      description: "Get the authenticated student's profile (nickname, email, timezone, premium status, learning languages with level names) and learning analytics (total lessons, hours, streaks). Requires login. Returns JSON by default. Pass text=true for human-readable output.",
       inputSchema: {
-        json: z.boolean().optional().describe("Output raw JSON instead of human-readable text"),
+        text: z.boolean().optional().describe("Output human-readable text instead of JSON"),
       },
     },
     async (args) => {
@@ -249,22 +277,24 @@ export function registerTools(server: McpServer): void {
         getAnalytics(config).catch(() => null),
       ]);
 
-      if (args.json === true) return jsonResult({ foundation: foundation.data, analytics });
-      return textResult(formatWhoami(foundation, analytics));
+      const transformed = transformWhoami(foundation, analytics);
+
+      if (args.text === true) return textResult(formatWhoami(transformed));
+      return jsonResult(transformed);
     },
   );
 
   server.registerTool(
     "get_lessons",
     {
-      description: "Get the authenticated student's lesson history. Filter client-side (the API kind filter is broken). Requires login.",
+      description: "Get the authenticated student's lesson history. Filter client-side (the API kind filter is broken). Requires login. Returns translated JSON by default (dollars, minutes). Pass text=true for human-readable output.",
       inputSchema: {
         all: z.boolean().optional().describe("Fetch all pages (up to 1000 lessons) before filtering. Default: first page (50 lessons)."),
         upcoming: z.boolean().optional().describe("Only upcoming lessons"),
         past: z.boolean().optional().describe("Only completed lessons (default: all groups)"),
         limit: z.number().optional().describe("Return only the first N lessons (default 20, ignored if all=true without explicit limit)"),
         timezone: z.string().optional().describe("IANA timezone for lesson times (default: from login config)"),
-        json: z.boolean().optional().describe("Output raw JSON instead of human-readable text"),
+        text: z.boolean().optional().describe("Output human-readable text instead of JSON"),
       },
     },
     async (args) => {
@@ -286,13 +316,15 @@ export function registerTools(server: McpServer): void {
       const limit = args.limit != null ? args.limit : (fetchAll ? undefined : 20);
       const sliced = limit ? filtered.slice(0, limit) : filtered;
 
-      if (args.json === true) {
-        return jsonResult(hitCap ? { lessons: sliced, hitCap: true } : sliced);
+      const transformed = transformLessons(sliced);
+
+      if (args.text === true) {
+        const lines = formatLessons(transformed, tz);
+        if (hitCap) lines.unshift("Warning: reached 1000-lesson safety cap. Older lessons may exist beyond this limit.");
+        return textResult(lines);
       }
 
-      const lines = formatLessons(sliced, tz);
-      if (hitCap) lines.unshift("Warning: reached 1000-lesson safety cap. Older lessons may exist beyond this limit.");
-      return textResult(lines);
+      return jsonResult(hitCap ? { lessons: transformed, hitCap: true } : transformed);
     },
   );
 }

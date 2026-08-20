@@ -1,5 +1,6 @@
 import { defineCommand } from "citty";
 import { searchTeachers, searchAllTeachers, sortTeachers, type SearchSort } from "../services/search";
+import { transformSearch } from "../transforms/search";
 import { formatSearch } from "../presenters/search";
 import type { SearchFilters } from "../schemas/search";
 
@@ -62,17 +63,18 @@ export default defineCommand({
       ? sortTeachers(result, sort)
       : result;
 
+    const transformed = transformSearch(sortedResult);
     const useJson = ctx.args.json === true;
 
     if (useJson) {
-      const jsonResult = limit && sortedResult.data
-        ? { ...sortedResult, data: sortedResult.data.slice(0, limit) }
-        : sortedResult;
+      const jsonResult = limit && transformed.teachers.length
+        ? { ...transformed, teachers: transformed.teachers.slice(0, limit) }
+        : transformed;
       console.log(JSON.stringify(jsonResult, null, 2));
       return;
     }
 
-    const lines = formatSearch(sortedResult, filters, limit);
+    const lines = formatSearch(transformed, filters, limit);
     console.log(lines.join("\n"));
   },
 });
