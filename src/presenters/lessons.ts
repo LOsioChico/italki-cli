@@ -1,5 +1,5 @@
 import type { LessonResult } from "../transforms/lessons";
-import { bold, dim, green, yellow } from "../lib/color";
+import { bold, dim, green, yellow, red } from "../lib/color";
 import { formatDateTime, timeAgo, timeUntil, formatDuration } from "../lib/time-ago";
 
 /** Format a list of lessons as human-readable lines (one per lesson). */
@@ -13,9 +13,10 @@ export function formatLessons(lessons: LessonResult[], timezone: string): string
     const rel = start ? (l.group === "completed" ? timeAgo(start, timezone) : timeUntil(start, timezone)) : "";
     const duration = formatDuration(l.durationMinutes);
     const price = `$${l.totalPrice.toFixed(2)}`;
-    const status = l.group === "completed" ? green("✓") : l.group === "upcoming" ? yellow("◯") : dim(l.group);
+    const statusIcon = l.group === "completed" ? green("✓") : l.group === "upcoming" ? yellow("◯") : l.group === "canceled" ? red("✗") : dim("?");
     const lang = l.language;
+    const typeLabel = l.sessionTypeLabel !== l.sessionType ? dim(`(${l.sessionTypeLabel})`) : "";
 
-    return `${status}  ${bold(teacher)}  ${dim(`${when} (${rel})`)}  ${dim(duration)}  ${dim(price)}  ${lang}`;
+    return `${statusIcon}  ${bold(teacher)}  ${dim(`${when} (${rel})`)}  ${dim(duration)}  ${dim(price)}  ${lang}  ${typeLabel}`.trimEnd();
   });
 }

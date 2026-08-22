@@ -1242,14 +1242,374 @@ X-Token: <i_token>
 
 **Unknown:** Token expiration time. `pwd_token` is likely for password changes, not session auth.
 
-## Booking flow (not yet verified)
+## Booking flow (verified Aug 22, 2026 — HAR capture)
 
-**Previous assumption (from bigl34):** browser automation only, two-stage (preview → confirm), payment manual.
+Pure HTTP booking with `i_token`. Two-stage: create order, then pay. Trial lesson captured below; regular lesson flow should be identical except for `order_type`/`lesson_type`/`course_price_id`.
 
-**Current hypothesis:** booking may be possible via HTTP API using `i_token` from login. Not yet tested — Phase 3 work.
-- `dryRun` mode: preview only, don't submit. User reviews screenshot before confirming.
-- Booking types: "instant" vs "request" (detected from page content)
-- Cost extraction: parse price from page DOM (`[class*="price"]`, `[class*="cost"]`)
+### 1. Coupon/price preview
+
+```
+GET https://api.italki.com/api/v2/finance/coupon/verify?source_type={s}&itc={price_cents}&lesson_price={price_cents}&use_balance={0|1}&teacher_id={id}&language={lang}&session_type={type}
+```
+
+**Auth required.** Fired twice on payment page load — once with `use_balance=0`, once with `use_balance=1` — to compute both prices for the credits toggle.
+
+| Param | Type | Example | Notes |
+|---|---|---|---|
+| `source_type` | number | `5` | `5` = trial booking. Other values TBD |
+| `itc` | number | `600` | Same as `lesson_price` (cents) |
+| `lesson_price` | number | `600` | Lesson price in cents |
+| `use_balance` | 0/1 | `0` | `0` = skip credits, `1` = apply credits |
+| `teacher_id` | number | `11842092` | Teacher ID |
+| `language` | string | `english` | Lesson language |
+| `session_type` | number | `3` | `3` = trial. Other values TBD |
+
+### 2. Create order
+
+```
+POST https://api.italki.com/api/v3/orders
+Content-Type: application/json
+X-Token: <i_token>
+```
+
+**Body (trial lesson):**
+```json
+{
+  "order_type": 11,
+  "lesson_params": {
+    "teacher_id": 11842092,
+    "language": "english",
+    "lesson_type": 3,
+    "course_price_id": -1,
+    "time_start_list": ["2026-08-29T19:00:00.000Z"],
+    "is_instant": false,
+    "lesson_count": 1,
+    "im_type": "Z",
+    "student_id": 31626937
+  }
+}
+```
+
+| Field | Value | Notes |
+|---|---|---|
+| `order_type` | `11` | `11` = trial order. Other values TBD |
+| `lesson_type` | `3` | `3` = trial. Other values TBD |
+| `course_price_id` | `-1` | `-1` = trial (no course price). Real course = course price ID |
+| `time_start_list` | array of ISO strings | Slot start times (UTC) |
+| `is_instant` | boolean | `false` = request lesson, `true` = instant lesson |
+| `lesson_count` | number | Number of lessons in this order |
+| `im_type` | string | `"Z"` = Zoom. Other codes TBD |
+| `student_id` | number | Your user ID |
+
+**Response:** HTTP 200, returns `order_id` (e.g., `2202497488696746364`). Response body not captured in HAR.
+
+### 3. Pay for order
+
+```
+POST https://api.italki.com/api/v3/orders/{order_id}/payment
+Content-Type: application/json
+X-Token: <i_token>
+```
+
+**Body:**
+```json
+{ "no_use_balance": 0 }
+```
+
+| Field | Value | Notes |
+|---|---|---|
+| `no_use_balance` | 0/1 | `0` = use credits (default), `1` = skip credits and pay out-of-pocket |
+
+**Response:** HTTP 200. Creates the lesson session. Response body not captured in HAR.
+
+### 4. Post-booking endpoints
+
+| Endpoint | Method | Purpose |
+|---|---|---|
+| `/api/v2/session/first_lesson_check?session_id={id}` | GET | First-lesson check (returns whether this is student's first lesson with teacher) |
+| `/api/v2/session/trial_info` | GET | Trial eligibility info (`trial_count`, `free_trial_count`, `can_refund_session_id`, `refund_end_time`, `lesson_completed_count`) |
+| `/api/v3/lesson/simples?ids={id}&kind=lesson` | GET | Lightweight lesson details (id, name, status, start_time, user_list, duration, im_data) |
+| `/api/v3/lesson/trial_expectation/lesson/{id}` | GET | Trial expectation state (`is_trial_lesson`, `has_saved_expectation`, `selected_expectation_items`, `survey_submitted`) |
+| `/api/v3/lesson/trial_expectation/save` | POST | Save trial expectation. Body: `{"lesson_id": <id>, "selected_expectation_items": ["TRIO091"]}` |
+| `/api/v3/finance/payment/configs?source_type={s}&itc={price}` | GET | Payment method configs |
+| `/api/v2/finance/payment/one_step/list_v2` | GET | One-step payment methods list |
+| `/api/v2/finance/payment/config/user_bill_country_region` | GET | User's billing country/region |
+| `/api/v3/teacher/{id}/monthly_schedule?year={Y}&month={M}&user_timezone={IANA}` | GET | Monthly calendar view (v3, new) |
+| `/api/v2/session/{id}/time_change?start_time={ISO}&end_time={ISO}` | GET | Available slots for reschedule (verified Aug 22) |
+| `/api/v2/session/{id}` | POST | Submit session action (reschedule, cancel, etc.) (verified Aug 22) |
+| `/api/v2/session/{id}/history` | GET | Status change timeline (verified Aug 22) |
+| `/api/v2/session/{id}?version=1` | GET | Session detail with version param (verified Aug 22) |
+| `/api/v3/lesson/{id}/summary` | GET | Lesson summary (verified Aug 22) |
+| `/api/v3/lesson/{id}/summary/entrance` | GET | Summary entrance (verified Aug 22) |
+| `/api/v3/lesson/{id}/notes` | GET | Lesson notes (verified Aug 22) |
+| `/api/v3/flashcard/ai_flashcard?business_id={id}&business_kind=LESSON_SUMMARY` | GET | AI flashcards (verified Aug 22) |
+| `/api/v3/activity_manager/homework?session_id={id}` | GET | Homework (verified Aug 22) |
+| `/api/v3/activity_manager/lesson_practice/entrance?lesson_id={id}` | GET | Lesson practice entrance (verified Aug 22) |
+| `/api/v3/booking/teachers?teacher_ids={id}&skip_last_request_lesson=1` | GET | Booking teacher info (verified Aug 22) |
+| `/api/v3/lesson/{id}/recording_consent_popup` | GET | Recording consent popup (verified Aug 22) |
+| `/api/v2/me/lesson_count?session_tag=completed&teacher_id={id}` | GET | Lesson count with specific teacher (verified Aug 22) |
+
+### Lesson status enum (verified from JS source + API)
+
+Full status enum from italki JS bundle (`29508-*.js`, module 17007, export `qb`):
+
+| `status` | `group` | `session_label_code` | Meaning | Evidence |
+|---|---|---|---|---|
+| `"0"` | `"waiting"` | `TP793` | Pending teacher acceptance (just booked) | HAR + API |
+| `"1"` | ? | ? | Unknown — in enum, never referenced in JS | JS enum only |
+| `"2"` | ? | ? | Unknown — in enum, never referenced in JS | JS enum only |
+| `"3"` | `"action_required"` | `TP791` | Teacher requested time/price change | JS usage: "Time change" / "Price change" |
+| `"4"` | `"canceled"` | `TP755` | Declined (canceled with previous session) | JS: `status===4` → "declined" |
+| `"5"` | `"waiting"` | `TP793` | Reschedule requested, pending acceptance | HAR + API |
+| `"6"` | `"upcoming"` | `TP757` | Teacher accepted, lesson confirmed | HAR + API |
+| `"7"` | `"action_required"` | `TP751` | Confirmation needed (confirm within 3 days) | JS: "Confirm the lesson within 3 days" |
+| `"9"` | `"action_required"` | ? | Cancellation request sent | JS: "cancellation request has been sent" |
+| `"C"` | `"action_required"` | `TP794` | Lesson incomplete / in dispute | JS: "Lesson incomplete" |
+| `"E"` | ? | `TP792` | Resolved (dispute) | JS: `["E","P"]` → "resolved" |
+| `"F"` | `"completed"` | `TP752` | Lesson completed | API (verified Aug 15) |
+| `"G"` | ? | ? | Unknown — in enum, never referenced in JS | JS enum only |
+| `"H"` | `"action_required"` | `TP798` | Dispute settlement (waiting for italki decision) | JS: "dispute settlement" |
+| `"O"` | ? | ? | Unknown — in enum, never referenced in JS | JS enum only |
+| `"P"` | ? | `TP792` | Resolved (dispute) | JS: `["E","P"]` → "resolved" |
+| `"Q"` | ? | ? | Unknown — in enum, never referenced in JS | JS enum only |
+| `"S"` | ? | ? | Unknown — in enum, never referenced in JS | JS enum only |
+| `"W"` | ? | ? | Unknown — in enum, never referenced in JS | JS enum only |
+| `"X"` | ? | ? | Unknown — in enum, never referenced in JS | JS enum only |
+| `"Z"` | ? | ? | Unknown — in enum, never referenced in JS | JS enum only |
+
+**7 values have unknown meanings** (1, 2, G, O, Q, S, W, X, Z) — in the enum but never used in captured JS.
+
+`operate_deadline` field = teacher's acceptance deadline (ISO 8601). Trial captured: 2 days from booking. On reschedule, `operate_deadline` updates to the new proposed start time.
+
+When status is `"5"` (reschedule pending):
+- `session_start_time` = original time (unchanged)
+- `new_session_start_time` = proposed new time
+- `action_desc` = `status5_S_self-change`
+- Actions available: `student_cancel_reschedule_request` (CO301), `student_change_time_again` (TS106)
+
+### Group enum (verified from JS source + API)
+
+From italki JS bundle (`29508-*.js`, module 17007, export `km`):
+
+| Value | JS name | Evidence |
+|---|---|---|
+| `action_required` | ActionRequired | JS enum + `all_kind_count` API |
+| `canceled` | Canceled | JS enum + `all_kind_count` API |
+| `completed` | Completed | JS enum + `all_kind_count` API |
+| `upcoming` | Upcoming | JS enum + `all_kind_count` API |
+| `waiting` | Waiting | JS enum + `all_kind_count` API |
+| `unscheduled` | — | `all_kind_count` API only (not in JS enum) |
+
+### session_label_code enum (verified from JS i18n map)
+
+From italki JS bundle (`63922-*.js`, i18n translation map):
+
+| Code | Label |
+|---|---|
+| `TP751` | Confirmation needed |
+| `TP752` | Completed |
+| `TP754` | Currently live |
+| `TP755` | Canceled |
+| `TP757` | Upcoming |
+| `TP791` | Action required |
+| `TP792` | Resolved |
+| `TP793` | Waiting |
+| `TP794` | Dispute |
+| `TP797` | Reschedule needed |
+| `TP798` | In dispute |
+| `TP799` | Unscheduled |
+
+### Trial expectation codes (verified from JS source)
+
+From italki JS bundle (`page-5665b8ae4ff88e91.js`):
+
+| Code | Label |
+|---|---|
+| `TRIO090` | Check my level |
+| `TRIO091` | Understand the teaching style |
+| `TRIO092` | Build a learning plan |
+| `TRIO093` | Teach me something |
+| `TRIO094` | Discuss my learning goal |
+| `TE994` | Others |
+
+### Reschedule flow (verified Aug 22, 2026 — HAR capture)
+
+**1. Fetch available slots for reschedule:**
+
+```
+GET https://api.italki.com/api/v2/session/{session_id}/time_change?start_time={ISO}&end_time={ISO}
+```
+
+**Auth required.** Returns teacher's `available_schedule` + `teacher_lesson` (booked overlaps) for the date range — same structure as the schedule endpoint, scoped to a single session's reschedule window.
+
+| Param | Type | Notes |
+|---|---|---|
+| `start_time` | ISO 8601 | Window start (URL-encoded) |
+| `end_time` | ISO 8601 | Window end (URL-encoded) |
+
+Response includes `minimum_request_time_interval: 720` (minutes = 12 hours before lesson — minimum lead time for reschedule).
+
+**2. Submit reschedule request:**
+
+```
+POST https://api.italki.com/api/v2/session/{session_id}
+Content-Type: application/json
+X-Token: <i_token>
+```
+
+**Body (reschedule):**
+```json
+{
+  "status": "6",
+  "action": "student_change_time_after_deduct",
+  "need_other_params": 1,
+  "last_operate_time": "2026-08-22T17:39:39+00:00",
+  "new_session_time": "2026-08-24T09:30:00-05:00",
+  "extra_params": {
+    "code": "TS106",
+    "primary_level": 3,
+    "lesson_time_after": "2026-08-23T06:00:23+00:00"
+  },
+  "pwd_token": ""
+}
+```
+
+| Field | Value | Notes |
+|---|---|---|
+| `status` | `"6"` | Current session status (before action) |
+| `action` | `"student_change_time_after_deduct"` | Reschedule action (from `action_list`) |
+| `need_other_params` | 1 | Whether extra params required (from `action_list`) |
+| `last_operate_time` | ISO 8601 | From session detail's `last_operate_time` |
+| `new_session_time` | ISO 8601 with tz offset | Proposed new time (e.g., `2026-08-24T09:30:00-05:00` = Bogota) |
+| `extra_params.code` | `"TS106"` | Action code (from `action_list`) |
+| `extra_params.primary_level` | number | From `action_list` |
+| `extra_params.lesson_time_after` | ISO 8601 | Server time + buffer |
+| `pwd_token` | string | Empty for non-password-protected actions |
+
+**Response:**
+```json
+{
+  "data": {
+    "success": 1,
+    "pwd_token": "",
+    "next_status": "5",
+    "show_trustpilot_invite": false,
+    "review_platform": null
+  },
+  "success": 1
+}
+```
+
+`next_status: "5"` = reschedule pending teacher acceptance.
+
+**3. Session history:**
+
+```
+GET https://api.italki.com/api/v2/session/{session_id}/history
+```
+
+Returns timeline of status changes:
+
+```json
+{
+  "data": {
+    "history": [
+      {
+        "code_params": [{"code": "TP912", "param": null}],
+        "status": "5",
+        "operator": 1,
+        "create_time": "2026-08-22T18:00:42+00:00",
+        "history_id": 245773208
+      },
+      {
+        "code_params": [{"code": "TP916", "param": 4482591708}],
+        "status": "6",
+        "operator": 2,
+        "create_time": "2026-08-22T17:39:39+00:00",
+        "history_id": 245772422
+      },
+      {
+        "code_params": [{"code": "TP981", "param": 4482591708}],
+        "status": "0",
+        "operator": 1,
+        "create_time": "2026-08-22T17:38:42+00:00",
+        "history_id": 245772385
+      }
+    ],
+    "is_completed": 0
+  }
+}
+```
+
+| `operator` | Meaning |
+|---|---|
+| `1` | Student |
+| `2` | Teacher |
+
+History codes: `TP981` = lesson created, `TP916` = teacher accepted, `TP912` = reschedule requested.
+
+### Session actions (POST /v2/session/{id})
+
+The `POST /api/v2/session/{session_id}` endpoint is a generic action endpoint. The `action` field determines what happens. Actions come from the session detail's `action_list`:
+
+| Action | Code | Status → | Meaning |
+|---|---|---|---|
+| `student_change_time_after_deduct` | TS106 | `6` → `5` | Reschedule lesson (after teacher accepted) |
+| `student_cancel_after_deduct` | TP140 | `6` → ? | Cancel lesson (after teacher accepted) |
+| `student_cancel_reschedule_request` | CO301 | `5` → `6` | Cancel reschedule request |
+| `student_change_time_again` | TS106 | `5` → `5` | Change time again (new reschedule) |
+
+Body structure is the same for all actions — `status`, `action`, `need_other_params`, `last_operate_time`, `extra_params` (from `action_list`), `pwd_token`.
+
+### session_type / lesson_type enum (verified from JS source)
+
+`session_type` and `lesson_type` use the **same enum**. Verified from italki JS bundle (`29508-*.js`):
+
+```javascript
+(r = m || (m = {})).Single = "1", r.Package = "2", r.Trial = "3", r.Instant = "4"
+```
+
+| Value | Name | Evidence |
+|---|---|---|
+| `"1"` | Single (regular lesson) | JS enum. Booking success message: "booked the lesson" (TRA018) |
+| `"2"` | Package | JS enum. Booking success message: "booked the package" (TRA055) |
+| `"3"` | Trial | JS enum + HAR booking + `lesson/simples` name "Trial Lesson" (CO28) |
+| `"4"` | Instant | JS enum. JS: `"4"===session_type` treated same as `is_instant=1` (TE253) |
+
+**Verified Aug 22, 2026** from JS source + HAR + session detail API calls.
+
+### order_type (partially verified)
+
+Only `11` = trial known from HAR booking payload. Enum definition not found in captured JS (booking page JS chunk not captured). Other values TBD — likely correlates with `lesson_type` (e.g., `11` ↔ trial).
+
+### source_type (partially verified)
+
+Only `5` = trial known from HAR `coupon/verify` calls. Enum not found in JS. Other values TBD.
+
+### im_type codes (verified from JS source)
+
+Verified from italki JS bundle (`29508-*.js` enum + `37991-*.js` icon map). The enum includes `"Z"` but the icon map only covers `"A"` = Zoom.
+
+| Code | IM Name | Status | In icon map |
+|---|---|---|---|
+| `"1"` | Skype | Active | Yes |
+| `"T"` | Teams | Active | Yes |
+| `"6"` | Google Meet | Active | Yes |
+| `"8"` | FaceTime | Active | Yes |
+| `"9"` | Wechat | Active | Yes |
+| `"A"` | Zoom | Active | Yes |
+| `"Z"` | Unknown (likely Zoom variant) | Active | No |
+| `"2"` | MSN Messenger | Legacy | No |
+| `"3"` | Yahoo! Messenger | Legacy | No |
+| `"4"` | AOL Instant Messenger | Legacy | No |
+| `"5"` | ICQ | Legacy | No |
+| `"7"` | QQ | Active | Yes |
+
+**`"Z"` vs `"A"`:** Both are in the JS enum. API bookings return `"Z"` for Zoom, but `teacher_im_tools` uses `"A"`. `"Z"` may be a booking-specific code (the booking payload sends `im_type: "Z"`), while `"A"` is the profile/display code. Both likely resolve to Zoom.
+
+### Trial expectation codes
+
+See the [Trial expectation codes](#trial-expectation-codes-verified-from-js-source) section above for the full list (TRIO090-TRIO094 + TE994).
 
 ## Price field reference
 
@@ -1341,6 +1701,28 @@ See the filter fields table above for the full tag list per category.
 - ✅ `GET /api/v3/lesson/learning_analytics` — streaks, totals, practice (verified Aug 15)
 - ✅ `GET /api/v2/teacher/{id}/simple_schedule` — schedule with timezone param, no auth needed (verified Aug 15)
 - ✅ `GET /api/v2/session/{id}` — full lesson detail by session ID (verified Aug 15)
+- ✅ `POST /api/v3/orders` — create booking order, returns `order_id` (verified Aug 22 via HAR)
+- ✅ `POST /api/v3/orders/{id}/payment` — pay for order with `no_use_balance` flag (verified Aug 22 via HAR)
+- ✅ `GET /api/v2/finance/coupon/verify` — price preview with/without credits (verified Aug 22 via HAR)
+- ✅ `GET /api/v3/lesson/simples?ids={id}&kind=lesson` — lightweight lesson details (verified Aug 22 via HAR)
+- ✅ `GET /api/v3/lesson/trial_expectation/lesson/{id}` — trial expectation state (verified Aug 22 via HAR)
+- ✅ `POST /api/v3/lesson/trial_expectation/save` — save trial expectation (verified Aug 22 via HAR)
+- ✅ `GET /api/v2/session/trial_info` — trial eligibility info (verified Aug 22 via HAR)
+- ✅ `GET /api/v3/teacher/{id}/monthly_schedule` — monthly calendar view (verified Aug 22 via HAR)
+- ✅ Lesson status transitions: `"0"`/`"waiting"` → `"6"`/`"upcoming"` → `"F"`/`"completed"` + `"5"`/`"waiting"` (reschedule) (verified Aug 22)
+- ✅ `session_type` / `lesson_type` enum: `"1"`=Single, `"2"`=Package, `"3"`=Trial, `"4"`=Instant (verified Aug 22 from JS source + HAR)
+- ✅ `im_type` codes: `"1"`=Skype, `"T"`=Teams, `"6"`=Google Meet, `"8"`=FaceTime, `"9"`=Wechat, `"A"`=Zoom, `"2"`-`"5"`=legacy (verified Aug 22 from JS source)
+- ✅ `course_price_id`: `-1` = trial, real IDs from `price_list` for regular/package (verified Aug 22 from teacher profile + HAR)
+- ✅ `GET /api/v2/session/{id}/time_change` — available slots for reschedule (verified Aug 22 via HAR)
+- ✅ `POST /api/v2/session/{id}` — submit session action (reschedule, cancel) (verified Aug 22 via HAR)
+- ✅ `GET /api/v2/session/{id}/history` — status change timeline (verified Aug 22 via HAR)
+- ✅ `GET /api/v3/lesson/{id}/summary` — lesson summary (verified Aug 22 via HAR)
+- ✅ `GET /api/v3/lesson/{id}/notes` — lesson notes (verified Aug 22 via HAR)
+- ✅ `GET /api/v3/activity_manager/homework` — homework (verified Aug 22 via HAR)
+- ✅ `GET /api/v3/activity_manager/lesson_practice/entrance` — lesson practice entrance (verified Aug 22 via HAR)
+- ✅ `GET /api/v3/booking/teachers` — booking teacher info (verified Aug 22 via HAR)
+- ✅ `GET /api/v3/lesson/{id}/recording_consent_popup` — recording consent (verified Aug 22 via HAR)
+- ✅ `GET /api/v2/me/lesson_count?session_tag=completed&teacher_id={id}` — lesson count with teacher (verified Aug 22 via HAR)
 - ✅ Auth method: token-based (`X-Token` header), not cookie-based
 - ✅ v3 API exists — lesson + IM endpoints return bare arrays (no `{meta, data, success}` wrapper)
 
@@ -1348,6 +1730,12 @@ See the filter fields table above for the full tag list per category.
 
 - ❓ Token expiration time for `i_token`
 - ❓ Wrong password behavior with correct signature (Cloudflare rate-limited before testing)
-- ❓ Whether booking can be done via HTTP API with `i_token`
+- ❓ `order_type` enum — only `11` = trial known (booking page JS not captured)
+- ❓ `source_type` enum — only `5` = trial known
+- ❓ Regular (non-trial) booking — `order_type`/`lesson_type`/`course_price_id` values for non-trial
+- ❓ Instant lesson booking — `is_instant: true` flow
+- ❓ Cancel lesson flow — `student_cancel_after_deduct` action (TP140) not yet exercised
+- ❓ `im_type: "Z"` vs `"A"` discrepancy (API returns "Z", JS maps "A" = Zoom)
+- ❓ Full `TRIO*` trial expectation code list (only `TRIO091` observed)
 - ❓ Favorites endpoint
 - ❓ Message/chat send endpoint (read verified, write unknown)

@@ -77,3 +77,80 @@ export const TAG_NAMES = {
 export const LEVEL_MAP: Record<number, string> = {
   1: "A1", 2: "A2", 3: "B1", 4: "B2", 5: "C1", 6: "C2", 7: "Native",
 };
+
+// Session type / lesson type — same enum (verified from JS source Aug 22, 2026)
+export const SESSION_TYPE_MAP: Record<string, string> = {
+  "1": "Single",
+  "2": "Package",
+  "3": "Trial",
+  "4": "Instant",
+};
+
+// Lesson status — verified from JS source + HAR + API (Aug 22, 2026)
+// 7 values unknown (1, 2, G, O, Q, S, W, X, Z) — in JS enum but never referenced
+export const STATUS_MAP: Record<string, string> = {
+  "0": "Waiting for teacher",
+  "3": "Teacher requested change",
+  "4": "Declined",
+  "5": "Reschedule pending",
+  "6": "Upcoming",
+  "7": "Confirmation needed",
+  "9": "Cancellation requested",
+  C: "In dispute",
+  E: "Resolved",
+  F: "Completed",
+  H: "Dispute settlement",
+  P: "Resolved",
+};
+
+// Group — verified from JS source + all_kind_count API (Aug 22, 2026)
+export const GROUP_MAP: Record<string, string> = {
+  action_required: "Action required",
+  canceled: "Canceled",
+  completed: "Completed",
+  upcoming: "Upcoming",
+  waiting: "Waiting",
+  unscheduled: "Unscheduled",
+};
+
+// IM type codes — verified from JS source (Aug 22, 2026)
+export const IM_TYPE_MAP: Record<string, string> = {
+  "1": "Skype",
+  "2": "MSN Messenger",
+  "3": "Yahoo! Messenger",
+  "4": "AOL Instant Messenger",
+  "5": "ICQ",
+  "6": "Google Meet",
+  "7": "QQ",
+  "8": "FaceTime",
+  "9": "Wechat",
+  A: "Zoom",
+  T: "Teams",
+  Z: "Zoom",
+};
+
+// Session label codes — verified from JS i18n map (Aug 22, 2026)
+export const SESSION_LABEL_CODE_MAP: Record<string, string> = {
+  TP751: "Confirmation needed",
+  TP752: "Completed",
+  TP754: "Currently live",
+  TP755: "Canceled",
+  TP757: "Upcoming",
+  TP791: "Action required",
+  TP792: "Resolved",
+  TP793: "Waiting",
+  TP794: "Dispute",
+  TP797: "Reschedule needed",
+  TP798: "In dispute",
+  TP799: "Unscheduled",
+};
+
+// Trial expectation codes — verified from JS source (Aug 22, 2026)
+export const TRIAL_EXPECTATION_MAP: Record<string, string> = {
+  TRIO090: "Check my level",
+  TRIO091: "Understand the teaching style",
+  TRIO092: "Build a learning plan",
+  TRIO093: "Teach me something",
+  TRIO094: "Discuss my learning goal",
+  TE994: "Others",
+};

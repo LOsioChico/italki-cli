@@ -11,7 +11,7 @@ const lessonItemSchema = z.looseObject({
   group: z.string(), // "completed", "upcoming", "pending", "expired"
   card_name: z.string(), // i18n code, e.g. "TS665" = "Completed"
   status: z.string(), // "F" = completed (verified). Other values TBD.
-  session_type: z.string(), // not verified — display as raw value
+  session_type: z.enum(["1", "2", "3", "4"]), // 1=Single, 2=Package, 3=Trial, 4=Instant (verified Aug 22 from JS source)
   total_price: z.number(),
   language: z.string(),
   duration: z.number(), // 15-min units (2 = 30min)
