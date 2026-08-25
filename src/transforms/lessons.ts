@@ -2,6 +2,7 @@ import type { LessonItem } from "../schemas/lesson";
 import { STATUS_MAP, SESSION_TYPE_MAP, IM_TYPE_MAP } from "../constants";
 
 export interface LessonResult {
+  sessionId: number;
   group: string;
   status: string;
   statusLabel: string;
@@ -25,6 +26,7 @@ export interface LessonResult {
 
 export function transformLessons(raw: LessonItem[]): LessonResult[] {
   return raw.map((l) => ({
+    sessionId: l.session_obj?.session_id ?? 0,
     group: l.group,
     status: l.status,
     statusLabel: STATUS_MAP[l.status] ?? l.status,

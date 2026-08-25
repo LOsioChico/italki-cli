@@ -17,6 +17,8 @@ export function formatLessons(lessons: LessonResult[], timezone: string): string
     const lang = l.language;
     const typeLabel = l.sessionTypeLabel !== l.sessionType ? dim(`(${l.sessionTypeLabel})`) : "";
 
-    return `${statusIcon}  ${bold(teacher)}  ${dim(`${when} (${rel})`)}  ${dim(duration)}  ${dim(price)}  ${lang}  ${typeLabel}`.trimEnd();
+    const sid = l.sessionId ? dim(`#${l.sessionId}`) : "";
+
+    return `${statusIcon}  ${bold(teacher)}  ${dim(`${when} (${rel})`)}  ${dim(duration)}  ${dim(price)}  ${lang}  ${typeLabel}  ${sid}`.trimEnd();
   });
 }
