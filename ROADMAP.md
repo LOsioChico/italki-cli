@@ -9,22 +9,31 @@
 |---|---|---|
 | 1 | Public API + CLI + MCP (no auth) | DONE — runtime-verified |
 | 2 | Auth (login, balance, whoami, lessons) | DONE — runtime-verified Aug 15, 2026 |
-| 3 | Booking | Not started |
+| 3 | Booking | DONE — HAR-verified Aug 24, 2026 (booking flow verified against 2 HARs) |
 
-See `docs/api-reference.md` for all 23 verified endpoints.
+See `docs/api-reference.md` for all verified endpoints.
 
-## Phase 3: Booking
+## Phase 3: Booking — DONE
 
-**Goal:** Book sessions from CLI/MCP.
+**Implemented:**
+1. `services/booking.ts` — createOrder, payOrder, getTimeChangeSlots, submitSessionAction, getSessionDetail, getSessionHistory
+2. `schemas/booking.ts` — Zod schemas for all booking responses
+3. `transforms/booking.ts` — slot subtraction, action result, history timeline
+4. `presenters/booking.ts` — ANSI text formatters
+5. CLI commands: `italki book`, `italki reschedule`, `italki cancel`
+6. MCP tools: `book_lesson`, `reschedule_lesson`, `cancel_lesson`, `get_session_history`
+7. `authedFetch` extended to support POST with body
 
-1. Implement `services/booking.ts` — HTTP booking (use `i_token` from Phase 2)
-2. Two-stage: preview (dry run) → confirm
-3. Payment is always manual (return payment URL for user to complete)
-4. Add `italki book` command with `--dry-run` flag
-5. Add MCP tool with confirm-before-book safety
-6. Test with trial lesson booking
+**Verified:**
+- `bun run verify` (0 errors)
+- `italki book --dry-run` with real teacher (auto-detects language, course_price_id, timezone conversion)
+- Booking flow verified against 2 HAR captures (trial Aug 22 + single Aug 24):
+  - `order_type` = `11` for both trial and single (was wrong: `1` for single)
+  - Response field = `order_management_id` (was wrong: `order_id`)
+  - `session_id` in `order_result.lesson_info.lesson_ids[0]` (was wrong: `order_request.session_id`)
+- Reschedule flow verified against HAR 2 (Aug 22): action_list lookup from session detail
 
-**Deliverable:** `italki book 1518723 --dry-run` shows preview, `italki book 1518723` submits.
+**Not yet live-tested via CLI:** createOrder + payOrder POST (code matches HAR exactly, but CLI execution not tested — website booking confirmed the flow works). Reschedule + cancel POST not live-tested.
 
 ## References
 

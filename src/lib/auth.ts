@@ -12,12 +12,20 @@ export function authHeaders(config: Config | null): Record<string, string> | nul
 }
 
 /** Fetch wrapper that attaches auth headers. Throws if not logged in or session expired. */
-export async function authedFetch(path: string, config: Config | null): Promise<Response> {
+export async function authedFetch(
+  path: string,
+  config: Config | null,
+  options?: { method?: string; body?: string },
+): Promise<Response> {
   const headers = authHeaders(config);
   if (!headers) {
     throw new Error("Not logged in. Run 'italki login' first.");
   }
-  const res = await fetch(`${API_BASE}${path}`, { headers });
+  const res = await fetch(`${API_BASE}${path}`, {
+    headers,
+    method: options?.method ?? "GET",
+    body: options?.body,
+  });
   // italki returns 400 with {"error":{"code":"NeedAuth"}} for expired/invalid tokens, not 401
   if (res.status === 401 || res.status === 400) {
     const body = await res.text();

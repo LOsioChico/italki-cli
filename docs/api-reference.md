@@ -1242,9 +1242,9 @@ X-Token: <i_token>
 
 **Unknown:** Token expiration time. `pwd_token` is likely for password changes, not session auth.
 
-## Booking flow (verified Aug 22, 2026 — HAR capture)
+## Booking flow (verified Aug 22 + Aug 24, 2026 — two HAR captures)
 
-Pure HTTP booking with `i_token`. Two-stage: create order, then pay. Trial lesson captured below; regular lesson flow should be identical except for `order_type`/`lesson_type`/`course_price_id`.
+Pure HTTP booking with `i_token`. Two-stage: create order, then pay. Both trial and single lesson flows captured — `order_type` is always `11`, only `lesson_type` and `course_price_id` differ.
 
 ### 1. Coupon/price preview
 
@@ -1256,13 +1256,13 @@ GET https://api.italki.com/api/v2/finance/coupon/verify?source_type={s}&itc={pri
 
 | Param | Type | Example | Notes |
 |---|---|---|---|
-| `source_type` | number | `5` | `5` = trial booking. Other values TBD |
+| `source_type` | number | `5` | `5` = booking. Other values TBD |
 | `itc` | number | `600` | Same as `lesson_price` (cents) |
 | `lesson_price` | number | `600` | Lesson price in cents |
 | `use_balance` | 0/1 | `0` | `0` = skip credits, `1` = apply credits |
 | `teacher_id` | number | `11842092` | Teacher ID |
 | `language` | string | `english` | Lesson language |
-| `session_type` | number | `3` | `3` = trial. Other values TBD |
+| `session_type` | number | `3` | `3` = trial, `1` = single (same as lesson_type) |
 
 ### 2. Create order
 
@@ -1272,7 +1272,7 @@ Content-Type: application/json
 X-Token: <i_token>
 ```
 
-**Body (trial lesson):**
+**Body (trial lesson — HAR 1, Aug 22):**
 ```json
 {
   "order_type": 11,
@@ -1290,23 +1290,48 @@ X-Token: <i_token>
 }
 ```
 
-| Field | Value | Notes |
-|---|---|---|
-| `order_type` | `11` | `11` = trial order. Other values TBD |
-| `lesson_type` | `3` | `3` = trial. Other values TBD |
-| `course_price_id` | `-1` | `-1` = trial (no course price). Real course = course price ID |
-| `time_start_list` | array of ISO strings | Slot start times (UTC) |
-| `is_instant` | boolean | `false` = request lesson, `true` = instant lesson |
-| `lesson_count` | number | Number of lessons in this order |
-| `im_type` | string | `"Z"` = Zoom. Other codes TBD |
-| `student_id` | number | Your user ID |
+**Body (single lesson — HAR 2, Aug 24):**
+```json
+{
+  "order_type": 11,
+  "lesson_params": {
+    "teacher_id": 11842092,
+    "language": "english",
+    "lesson_type": 1,
+    "course_price_id": 783288,
+    "time_start_list": ["2026-08-26T16:00:00.000Z"],
+    "is_instant": false,
+    "lesson_count": 1,
+    "im_type": "Z",
+    "student_id": 31626937
+  }
+}
+```
 
-**Response:** HTTP 200, returns `order_id` (e.g., `2202497488696746364`). Response body not captured in HAR.
+| Field | Trial | Single | Notes |
+|---|---|---|---|
+| `order_type` | `11` | `11` | **Always 11** — same for trial and single (verified Aug 24) |
+| `lesson_type` | `3` | `1` | `3` = trial, `1` = single, `2` = package, `4` = instant |
+| `course_price_id` | `-1` | `783288` | `-1` = trial. Real ID from teacher's `price_list` for regular |
+| `time_start_list` | ISO strings | ISO strings | Slot start times (UTC) |
+| `is_instant` | `false` | `false` | `false` = request lesson, `true` = instant lesson |
+| `lesson_count` | `1` | `1` | Number of lessons in this order |
+| `im_type` | `"Z"` | `"Z"` | `"Z"` = Zoom |
+| `student_id` | number | number | Your user ID |
+
+**Response (verified Aug 24):**
+```json
+{"order_management_id": "2203351374518667584"}
+```
+
+| Field | Type | Notes |
+|---|---|---|
+| `order_management_id` | string | Order ID — use this in the payment URL |
 
 ### 3. Pay for order
 
 ```
-POST https://api.italki.com/api/v3/orders/{order_id}/payment
+POST https://api.italki.com/api/v3/orders/{order_management_id}/payment
 Content-Type: application/json
 X-Token: <i_token>
 ```
@@ -1320,7 +1345,51 @@ X-Token: <i_token>
 |---|---|---|
 | `no_use_balance` | 0/1 | `0` = use credits (default), `1` = skip credits and pay out-of-pocket |
 
-**Response:** HTTP 200. Creates the lesson session. Response body not captured in HAR.
+**Response (verified Aug 24):**
+```json
+{
+  "order_management_id": "2203351374518667584",
+  "order_status": 1,
+  "order_type": 11,
+  "price": 700,
+  "creator_id": 31626937,
+  "owner_id": 31626937,
+  "teacher_id": 11842092,
+  "operator_type": 1,
+  "order_request": {
+    "lesson_info": {
+      "lesson_type": "1",
+      "is_instant": 0,
+      "lesson_count": 1,
+      "lesson_duration": 2,
+      "time_start_list": ["2026-08-26T16:00:00+00:00"],
+      "im_type": "Z",
+      "course_price_id": 783288,
+      "course_info": { "course_id": 215953, "title": "Conversational skills", ... },
+      "student_id": 31626937,
+      "teacher_id": 11842092,
+      "language": "english"
+    },
+    "order_source": ""
+  },
+  "order_result": {
+    "lesson_info": {
+      "lesson_ids": [7718569708],
+      "package_id": 0
+    }
+  },
+  "create_time": "2026-08-25T02:11:43+00:00",
+  "update_time": "2026-08-25T02:11:44+00:00",
+  "expiration_time": "2026-08-25T02:31:44+00:00"
+}
+```
+
+| Field | Type | Notes |
+|---|---|---|
+| `order_status` | number | `1` = paid/active |
+| `price` | number | Total price in cents (e.g., `700` = $7.00) |
+| `order_result.lesson_info.lesson_ids` | array | **Session IDs created** — `lesson_ids[0]` is the session ID |
+| `expiration_time` | ISO 8601 | Order expiration (20 min from creation in observed capture) |
 
 ### 4. Post-booking endpoints
 
@@ -1578,13 +1647,13 @@ Body structure is the same for all actions — `status`, `action`, `need_other_p
 
 **Verified Aug 22, 2026** from JS source + HAR + session detail API calls.
 
-### order_type (partially verified)
+### order_type (verified Aug 24 — both trial and single)
 
-Only `11` = trial known from HAR booking payload. Enum definition not found in captured JS (booking page JS chunk not captured). Other values TBD — likely correlates with `lesson_type` (e.g., `11` ↔ trial).
+`11` for **both** trial and single lesson bookings (verified from two HAR captures). Enum definition not found in JS, but `11` is the only value observed. Other values TBD (package?).
 
 ### source_type (partially verified)
 
-Only `5` = trial known from HAR `coupon/verify` calls. Enum not found in JS. Other values TBD.
+`5` = booking (verified from HAR `coupon/verify` calls for both trial and single). Enum not found in JS. Other values TBD.
 
 ### im_type codes (verified from JS source)
 
@@ -1725,16 +1794,19 @@ See the filter fields table above for the full tag list per category.
 - ✅ `GET /api/v2/me/lesson_count?session_tag=completed&teacher_id={id}` — lesson count with teacher (verified Aug 22 via HAR)
 - ✅ Auth method: token-based (`X-Token` header), not cookie-based
 - ✅ v3 API exists — lesson + IM endpoints return bare arrays (no `{meta, data, success}` wrapper)
+- ✅ `POST /api/v3/orders` — create order (trial + single verified Aug 22 + Aug 24). `order_type` always `11`. Response: `{"order_management_id": "..."}`
+- ✅ `POST /api/v3/orders/{id}/payment` — pay order (verified Aug 24). Response includes `order_result.lesson_info.lesson_ids[0]` = session ID
+- ✅ `order_type` = `11` for both trial and single lessons (verified Aug 24 from non-trial HAR)
+- ✅ `source_type` = `5` for both trial and single (verified Aug 24)
+- ✅ Non-trial booking: `lesson_type=1`, `course_price_id` from teacher's `price_list` (verified Aug 24)
 
 ### Still unknown (need auth to test)
 
 - ❓ Token expiration time for `i_token`
 - ❓ Wrong password behavior with correct signature (Cloudflare rate-limited before testing)
-- ❓ `order_type` enum — only `11` = trial known (booking page JS not captured)
-- ❓ `source_type` enum — only `5` = trial known
-- ❓ Regular (non-trial) booking — `order_type`/`lesson_type`/`course_price_id` values for non-trial
+- ❓ `order_type` enum — only `11` observed (trial + single). Package value TBD
 - ❓ Instant lesson booking — `is_instant: true` flow
-- ❓ Cancel lesson flow — `student_cancel_after_deduct` action (TP140) not yet exercised
+- ❓ Cancel lesson flow — `student_cancel_after_deduct` action (TP140) documented from JS action_list, but exact body params NOT captured in HAR. CLI/MCP implemented with action_list lookup from session detail, but NOT live-tested.
 - ❓ `im_type: "Z"` vs `"A"` discrepancy (API returns "Z", JS maps "A" = Zoom)
 - ❓ Full `TRIO*` trial expectation code list (only `TRIO091` observed)
 - ❓ Favorites endpoint

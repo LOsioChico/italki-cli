@@ -39,7 +39,7 @@ checking responses.
 tool calls and JSON output, not screen scraping. Search tutors, filter, compare, and
 track lessons — all programmable.
 
-**What it is NOT:** a scraper, or an official italki product. Booking is planned (Phase 3).
+**What it is NOT:** a scraper, or an official italki product.
 
 ## Architecture rules
 
@@ -195,9 +195,11 @@ Before writing code, stop at the first rung that holds:
 
 ## Interfaces
 
-**CLI:** `src/commands/` — citty-based, auto `--help`. `bun run index.ts --help` lists all commands.
+**Interface selection rule:** AI agents (Devin, Claude Code, Cursor) MUST use the MCP server, not the CLI. The CLI is for terminal users. Both wrap the same services + transforms, so output is identical. Run `mcp_list_tools` for the `italki` server before the first italki action. Fall back to CLI only for capabilities not exposed via MCP (`login`, `logout`).
 
-**MCP server:** `src/mcp/server.ts` + `src/mcp/tools.ts`. Imports from `src/services/` + `src/transforms/` + `src/presenters/`. Registered as `italki mcp` command. 8 tools: search_teachers, get_teacher, get_schedule, get_reviews, compare_teachers (public, no auth); get_balance, get_whoami, get_lessons (require login — return isError if no saved session). All tools return translated JSON by default (domain objects: dollars, tag names, minutes); pass `text: true` for compact human-readable text. Runtime-verified over stdio.
+**CLI:** `src/commands/` — citty-based, auto `--help`. `bun run index.ts --help` lists all commands. For terminal users only.
+
+**MCP server:** `src/mcp/server.ts` + `src/mcp/tools.ts`. Imports from `src/services/` + `src/transforms/` + `src/presenters/`. Registered as `italki mcp` command. 12 tools: search_teachers, get_teacher, get_schedule, get_reviews, compare_teachers (public, no auth); get_balance, get_whoami, get_lessons (require login — return isError if no saved session); book_lesson, reschedule_lesson, cancel_lesson, get_session_history (require login — booking/reschedule/cancel actions). All tools return translated JSON by default (domain objects: dollars, tag names, minutes); pass `text: true` for compact human-readable text. Runtime-verified over stdio (read tools); booking flow HAR-verified against 2 captures (trial + single, Aug 22 + 24).
 
 **REST API (future):** Add `src/api/app.ts` with Hono. Import from `src/services/` + `src/transforms/`. Returns translated JSON (domain objects). Zero changes to services or transforms. The separation rule makes REST additive, not invasive.
 

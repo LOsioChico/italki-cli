@@ -18,6 +18,9 @@ const main = defineCommand({
     balance: () => import("./src/commands/balance").then((m) => m.default),
     whoami: () => import("./src/commands/whoami").then((m) => m.default),
     lessons: () => import("./src/commands/lessons").then((m) => m.default),
+    book: () => import("./src/commands/book").then((m) => m.default),
+    reschedule: () => import("./src/commands/reschedule").then((m) => m.default),
+    cancel: () => import("./src/commands/cancel").then((m) => m.default),
   },
 });
 

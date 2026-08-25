@@ -7,6 +7,7 @@ import { getReviews } from "../services/reviews";
 import { getBalance } from "../services/finance";
 import { getFoundation, getAnalytics } from "../services/user";
 import { getLessons, getAllLessons } from "../services/lesson";
+import { createOrder, payOrder, getTimeChangeSlots, submitSessionAction, getSessionHistory, getSessionDetail } from "../services/booking";
 import { readConfig, resolveTimezone } from "../services/config";
 import { DEFAULT_TIMEZONE } from "../constants";
 import { transformSearch } from "../transforms/search";
@@ -14,6 +15,7 @@ import { transformTeacher } from "../transforms/teacher";
 import { transformSchedule } from "../transforms/schedule";
 import { transformReviews } from "../transforms/reviews";
 import { transformLessons } from "../transforms/lessons";
+import { transformTimeChangeSlots, transformSessionAction, transformSessionHistory } from "../transforms/booking";
 import { transformBalance } from "../transforms/balance";
 import { transformWhoami } from "../transforms/whoami";
 import { formatSearch } from "../presenters/search";
@@ -24,6 +26,7 @@ import { formatCompare } from "../presenters/compare";
 import { formatBalance } from "../presenters/balance";
 import { formatWhoami } from "../presenters/whoami";
 import { formatLessons } from "../presenters/lessons";
+import { formatTimeChangeSlots, formatSessionAction, formatSessionHistory } from "../presenters/booking";
 import type { SearchFilters } from "../schemas/search";
 
 type ToolResult = { content: Array<{ type: "text"; text: string }>; isError?: true };
@@ -325,6 +328,285 @@ export function registerTools(server: McpServer): void {
       }
 
       return jsonResult(hitCap ? { lessons: transformed, hitCap: true } : transformed);
+    },
+  );
+
+  // --- Booking tools (require login) ---
+
+  server.registerTool(
+    "book_lesson",
+    {
+      description: "Book a lesson with a teacher. Creates an order and pays immediately. Requires login. Pass dry_run=true to preview without booking.",
+      inputSchema: {
+        teacher_id: z.number().describe("Teacher ID (from search results)"),
+        time: z.string().describe("Lesson start time in ISO 8601 (e.g. 2026-08-29T19:00:00Z)"),
+        session_type: z.enum(["trial", "single", "package"]).optional().describe("Session type (default: trial)"),
+        language: z.string().optional().describe("Lesson language code (auto-detected from teacher profile if omitted)"),
+        course_price_id: z.number().optional().describe("course_price_id (auto-detected from teacher profile for non-trial)"),
+        im_type: z.enum(["zoom", "skype", "teams"]).optional().describe("IM platform (default: zoom)"),
+        no_balance: z.boolean().optional().describe("Skip credits, pay with other method (default: false = use credits)"),
+        dry_run: z.boolean().optional().describe("Preview without creating order (default: false)"),
+        text: z.boolean().optional().describe("Output human-readable text instead of JSON"),
+      },
+    },
+    async (args) => {
+      const config = await readConfig();
+      if (!config) return notLoggedInResult();
+
+      const teacherId = args.teacher_id;
+      const timeStart = args.time;
+      const sessionType = args.session_type ?? "trial";
+      const imType = args.im_type ?? "zoom";
+      const noBalance = args.no_balance === true;
+      const dryRun = args.dry_run === true;
+
+      const startDate = new Date(timeStart);
+      if (isNaN(startDate.getTime())) {
+        return { content: [{ type: "text", text: `Invalid time: ${timeStart}. Use ISO 8601.` }], isError: true };
+      }
+
+      const lessonTypeMap = { trial: 3, single: 1, package: 2 } as const;
+      const lessonType = lessonTypeMap[sessionType as keyof typeof lessonTypeMap];
+      if (!lessonType) {
+        return { content: [{ type: "text", text: `Invalid session_type: ${sessionType}` }], isError: true };
+      }
+
+      const imTypeMap = { zoom: "Z", skype: "1", teams: "T" } as const;
+      const imTypeCode = imTypeMap[imType as keyof typeof imTypeMap];
+      if (!imTypeCode) {
+        return { content: [{ type: "text", text: `Invalid im_type: ${imType}` }], isError: true };
+      }
+
+      // Fetch teacher profile for language + course_price_id
+      const teacher = await getTeacher(teacherId);
+      const teachLangs = teacher.data?.teacher_info?.teach_language ?? [];
+      const language = args.language ?? teachLangs[0]?.language ?? "";
+      if (!language) {
+        return { content: [{ type: "text", text: "Could not determine lesson language. Pass language explicitly." }], isError: true };
+      }
+
+      let coursePriceId: number;
+      if (args.course_price_id != null) {
+        coursePriceId = args.course_price_id;
+      } else if (sessionType === "trial") {
+        coursePriceId = -1;
+      } else {
+        const proCourses = teacher.data?.pro_course_detail ?? [];
+        const tutorCourses = teacher.data?.tutor_course_detail ?? [];
+        const allCourses = [...proCourses, ...tutorCourses];
+        const match = allCourses.find((c) => c.language === language);
+        if (!match || !match.price_list?.[0]) {
+          return { content: [{ type: "text", text: `No course found for language ${language}. Pass course_price_id explicitly.` }], isError: true };
+        }
+        coursePriceId = match.price_list[0].course_price_id;
+      }
+
+      // order_type: 11 for all bookings (verified from HAR — both trial and single use 11)
+      const orderType = 11;
+
+      const summary = {
+        teacherId,
+        teacherName: teacher.data?.user_info?.nickname ?? `Teacher ${teacherId}`,
+        language,
+        sessionType,
+        lessonType,
+        coursePriceId,
+        timeStart,
+        imType,
+        imTypeCode,
+        orderType,
+        noBalance,
+      };
+
+      if (dryRun) {
+        return jsonResult(summary);
+      }
+
+      const order = await createOrder(config, {
+        teacherId,
+        language,
+        lessonType,
+        coursePriceId,
+        timeStartList: [timeStart],
+        isInstant: false,
+        lessonCount: 1,
+        imType: imTypeCode,
+        studentId: config.user_id,
+        orderType,
+      });
+
+      const payment = await payOrder(config, order.order_management_id, noBalance);
+      const sessionId = payment.order_result?.lesson_info?.lesson_ids?.[0];
+
+      const result = {
+        orderId: order.order_management_id,
+        sessionId,
+        teacherName: summary.teacherName,
+        language,
+        sessionType,
+        timeStart,
+        paid: true,
+        usedCredits: !noBalance,
+      };
+
+      if (args.text === true) {
+        return textResult([
+          `✓ Booked ${sessionType} lesson with ${summary.teacherName}`,
+          `  Time:       ${timeStart}`,
+          `  Language:   ${language}`,
+          `  Order ID:   ${order.order_management_id}`,
+          sessionId ? `  Session ID: ${sessionId}` : "",
+          `  Credits:    ${noBalance ? "not used" : "used"}`,
+        ].filter(Boolean));
+      }
+      return jsonResult(result);
+    },
+  );
+
+  server.registerTool(
+    "reschedule_lesson",
+    {
+      description: "Reschedule a lesson. Without --time, shows available slots. With --time, submits the reschedule request. Requires login.",
+      inputSchema: {
+        session_id: z.number().describe("Session/lesson ID"),
+        time: z.string().optional().describe("New lesson time in ISO 8601. If omitted, shows available slots."),
+        days: z.number().optional().describe("Days to search ahead for slots (default: 28)"),
+        timezone: z.string().optional().describe("IANA timezone for slot display (default: from login config)"),
+        text: z.boolean().optional().describe("Output human-readable text instead of JSON"),
+      },
+    },
+    async (args) => {
+      const config = await readConfig();
+      if (!config) return notLoggedInResult();
+      const tz = resolveTimezone(args.timezone, config, DEFAULT_TIMEZONE);
+      const days = args.days ?? 28;
+      const sessionId = args.session_id;
+
+      // Compute date range — date-only format (same as schedule endpoint)
+      const now = new Date();
+      const startStr = now.toLocaleDateString("en-CA", { timeZone: tz });
+      const endDate = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
+      const endStr = endDate.toLocaleDateString("en-CA", { timeZone: tz });
+
+      if (!args.time) {
+        const raw = await getTimeChangeSlots(config, sessionId, startStr, endStr);
+        const transformed = transformTimeChangeSlots(raw);
+        if (args.text === true) return textResult(formatTimeChangeSlots(transformed, tz));
+        return jsonResult(transformed);
+      }
+
+      const newTime = args.time;
+      const newDate = new Date(newTime);
+      if (isNaN(newDate.getTime())) {
+        return { content: [{ type: "text", text: `Invalid time: ${newTime}. Use ISO 8601.` }], isError: true };
+      }
+
+      // Fetch session detail to get action_list (reschedule action + params)
+      const detail = await getSessionDetail(config, sessionId);
+      const actionList = detail.data?.action_list ?? [];
+      const sessionObj = detail.data?.session_obj;
+      const currentStatus = sessionObj?.status ?? "6";
+      // last_operate_time is in session_obj, NOT at data level (verified from HAR)
+      const lastOperateTime = sessionObj?.last_operate_time ?? new Date().toISOString();
+
+      const rescheduleAction =
+        actionList.find((a) => a.action === "student_change_time_after_deduct") ??
+        actionList.find((a) => a.action === "student_change_time_again");
+
+      if (!rescheduleAction) {
+        return { content: [{ type: "text", text: `No reschedule action available. Actions: ${actionList.map((a) => a.action).join(", ") || "none"}` }], isError: true };
+      }
+
+      const extraParams = rescheduleAction.extra_params;
+      const needOtherParams = rescheduleAction.need_other_params ?? 1;
+      const raw = await submitSessionAction(config, sessionId, {
+        status: currentStatus,
+        action: rescheduleAction.action,
+        needOtherParams,
+        lastOperateTime,
+        newSessionTime: newTime,
+        extraParams: {
+          code: extraParams?.code ?? "TS106",
+          primaryLevel: extraParams?.primary_level ?? 0,
+          lessonTimeAfter: extraParams?.lesson_time_after ?? "",
+        },
+      });
+
+      const transformed = transformSessionAction(raw);
+      if (args.text === true) return textResult(formatSessionAction(transformed));
+      return jsonResult({ sessionId, newTime, ...transformed });
+    },
+  );
+
+  server.registerTool(
+    "cancel_lesson",
+    {
+      description: "Cancel a lesson. Requires login.",
+      inputSchema: {
+        session_id: z.number().describe("Session/lesson ID"),
+        text: z.boolean().optional().describe("Output human-readable text instead of JSON"),
+      },
+    },
+    async (args) => {
+      const config = await readConfig();
+      if (!config) return notLoggedInResult();
+      const sessionId = args.session_id;
+
+      // Fetch session detail to get action_list (cancel action + params)
+      const detail = await getSessionDetail(config, sessionId);
+      const actionList = detail.data?.action_list ?? [];
+      const sessionObj = detail.data?.session_obj;
+      const currentStatus = sessionObj?.status ?? "6";
+      // last_operate_time is in session_obj, NOT at data level (verified from HAR)
+      const lastOperateTime = sessionObj?.last_operate_time ?? new Date().toISOString();
+
+      const cancelAction =
+        actionList.find((a) => a.action === "student_cancel_after_deduct") ??
+        actionList.find((a) => a.action === "student_cancel_reschedule_request");
+
+      if (!cancelAction) {
+        return { content: [{ type: "text", text: `No cancel action available. Actions: ${actionList.map((a) => a.action).join(", ") || "none"}` }], isError: true };
+      }
+
+      const extraParams = cancelAction.extra_params;
+      const needOtherParams = cancelAction.need_other_params ?? 0;
+      const raw = await submitSessionAction(config, sessionId, {
+        status: currentStatus,
+        action: cancelAction.action,
+        needOtherParams,
+        lastOperateTime,
+        extraParams: {
+          code: extraParams?.code ?? "TP140",
+          primaryLevel: extraParams?.primary_level ?? 0,
+          lessonTimeAfter: extraParams?.lesson_time_after ?? "",
+        },
+      });
+
+      const transformed = transformSessionAction(raw);
+      if (args.text === true) return textResult(formatSessionAction(transformed));
+      return jsonResult({ sessionId, ...transformed });
+    },
+  );
+
+  server.registerTool(
+    "get_session_history",
+    {
+      description: "Get the status change history for a session (timeline of bookings, reschedules, cancellations). Requires login.",
+      inputSchema: {
+        session_id: z.number().describe("Session/lesson ID"),
+        timezone: z.string().optional().describe("IANA timezone for timestamps (default: from login config)"),
+        text: z.boolean().optional().describe("Output human-readable text instead of JSON"),
+      },
+    },
+    async (args) => {
+      const config = await readConfig();
+      if (!config) return notLoggedInResult();
+      const tz = resolveTimezone(args.timezone, config, DEFAULT_TIMEZONE);
+
+      const raw = await getSessionHistory(config, args.session_id);
+      const transformed = transformSessionHistory(raw);
+      if (args.text === true) return textResult(formatSessionHistory(transformed, tz));
+      return jsonResult(transformed);
     },
   );
 }
