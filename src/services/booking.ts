@@ -112,7 +112,7 @@ export async function submitSessionAction(
     action: action.action,
     need_other_params: action.needOtherParams,
     last_operate_time: action.lastOperateTime,
-    new_session_time: action.newSessionTime ?? "",
+    new_session_time: action.newSessionTime,
     extra_params: {
       code: action.extraParams.code,
       primary_level: action.extraParams.primaryLevel,

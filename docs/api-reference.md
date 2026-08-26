@@ -1407,6 +1407,9 @@ X-Token: <i_token>
 | `/api/v2/session/{id}/time_change?start_time={ISO}&end_time={ISO}` | GET | Available slots for reschedule (verified Aug 22) |
 | `/api/v2/session/{id}` | POST | Submit session action (reschedule, cancel, confirm) (verified Aug 22 + Aug 26) |
 | `/api/v2/session/{id}/history` | GET | Status change timeline (verified Aug 22) |
+| `/api/v3/lesson/review_tags_v2?lesson_id={id}&teacher_id={id}` | GET | Review question structure (positive/negative questions, answer tags). Observed Aug 26, not implemented |
+| `/api/v3/lesson/lessons/{id}/reviews_v2` | POST | Submit lesson review (`session_score`, `comment`, `answers[]`). Observed Aug 26, not implemented |
+| `/api/v2/book_another_lesson_info?session_id={id}` | GET | Booking info for "book another lesson" flow. Observed Aug 26, not implemented |
 | `/api/v2/session/{id}?version=1` | GET | Session detail with version param (verified Aug 22) |
 | `/api/v3/lesson/{id}/summary` | GET | Lesson summary (verified Aug 22) |
 | `/api/v3/lesson/{id}/summary/entrance` | GET | Summary entrance (verified Aug 22) |
@@ -1629,7 +1632,7 @@ The `POST /api/v2/session/{session_id}` endpoint is a generic action endpoint. T
 | `student_change_time_again` | TS106 | `5` → `5` | Change time again (new reschedule) |
 | `student_complete_and_comment` | LV001 | `7` → `F` | Confirm lesson (student confirms completion) |
 
-Body structure is the same for all actions — `status`, `action`, `need_other_params`, `last_operate_time`, `extra_params` (from `action_list`), `pwd_token`. The confirm action (`student_complete_and_comment`) additionally sends `score`, `student_comment`, `basic_tags`, `normal_tags`, `personal_tags` (all empty/zero for confirm-only without review — verified Aug 26 from HAR).
+Body structure: `status`, `action`, `need_other_params`, `last_operate_time`, `extra_params` (from `action_list`), `pwd_token` — common to all actions. Reschedule additionally sends `new_session_time` (the new slot). Confirm (`student_complete_and_comment`) additionally sends `score`, `student_comment`, `basic_tags`, `normal_tags`, `personal_tags` (all empty/zero for confirm-only without review — verified Aug 26 from HAR).
 
 ### session_type / lesson_type enum (verified from JS source)
 
@@ -1807,7 +1810,10 @@ See the filter fields table above for the full tag list per category.
 - ❓ Wrong password behavior with correct signature (Cloudflare rate-limited before testing)
 - ❓ `order_type` enum — only `11` observed (trial + single). Package value TBD
 - ❓ Instant lesson booking — `is_instant: true` flow
-- ✅ Confirm lesson flow — `student_complete_and_comment` action (LV001) verified Aug 26 via HAR. Body includes `score`, `student_comment`, `basic_tags`, `normal_tags`, `personal_tags` (empty for confirm-only). Status `7` → `F`.
+- ✅ Confirm lesson flow — `student_complete_and_comment` action (LV001) verified Aug 26 via HAR. Body includes `score`, `student_comment`, `basic_tags`, `normal_tags`, `personal_tags` (empty for confirm-only). Status `7` → `F`. `new_session_time` NOT sent (only reschedule sends it).
+- ✅ `GET /api/v3/lesson/review_tags_v2` — review question structure (positive/negative questions, answer tags). Observed Aug 26, not implemented.
+- ✅ `POST /api/v3/lesson/lessons/{id}/reviews_v2` — submit lesson review. Body: `session_score`, `comment`, `answers[]`. Observed Aug 26, not implemented.
+- ✅ `GET /api/v2/book_another_lesson_info?session_id={id}` — book-another-lesson info. Observed Aug 26, not implemented.
 - ❓ `im_type: "Z"` vs `"A"` discrepancy (API returns "Z", JS maps "A" = Zoom)
 - ❓ Full `TRIO*` trial expectation code list (only `TRIO091` observed)
 - ❓ Favorites endpoint
