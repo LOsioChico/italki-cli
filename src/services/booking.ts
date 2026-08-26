@@ -88,7 +88,7 @@ export async function getTimeChangeSlots(
   return timeChangeResponseSchema.parse(await res.json());
 }
 
-/** Submit a session action (reschedule, cancel, etc.). */
+/** Submit a session action (reschedule, cancel, confirm, etc.). */
 export async function submitSessionAction(
   config: Config | null,
   sessionId: number,
@@ -100,6 +100,11 @@ export async function submitSessionAction(
     newSessionTime?: string;
     extraParams: { code: string; primaryLevel: number; lessonTimeAfter: string };
     pwdToken?: string;
+    score?: number;
+    studentComment?: string;
+    basicTags?: string;
+    normalTags?: string;
+    personalTags?: string;
   },
 ): Promise<SessionActionResponse> {
   const body = JSON.stringify({
@@ -114,6 +119,11 @@ export async function submitSessionAction(
       lesson_time_after: action.extraParams.lessonTimeAfter,
     },
     pwd_token: action.pwdToken ?? "",
+    score: action.score,
+    student_comment: action.studentComment,
+    basic_tags: action.basicTags,
+    normal_tags: action.normalTags,
+    personal_tags: action.personalTags,
   });
   const res = await authedFetch(`/api/v2/session/${sessionId}`, config, { method: "POST", body });
   if (!res.ok) {

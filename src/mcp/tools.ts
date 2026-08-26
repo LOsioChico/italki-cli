@@ -609,4 +609,55 @@ export function registerTools(server: McpServer): void {
       return jsonResult(transformed);
     },
   );
+
+  server.registerTool(
+    "confirm_lesson",
+    {
+      description: "Confirm a completed lesson (status 7 → F). Use after a lesson ends and needs student confirmation. Requires login.",
+      inputSchema: {
+        session_id: z.number().describe("Session/lesson ID"),
+        text: z.boolean().optional().describe("Output human-readable text instead of JSON"),
+      },
+    },
+    async (args) => {
+      const config = await readConfig();
+      if (!config) return notLoggedInResult();
+      const sessionId = args.session_id;
+
+      // Fetch session detail to get action_list + last_operate_time
+      const detail = await getSessionDetail(config, sessionId);
+      const actionList = detail.data?.action_list ?? [];
+      const sessionObj = detail.data?.session_obj;
+      const currentStatus = sessionObj?.status ?? "7";
+      const lastOperateTime = sessionObj?.last_operate_time ?? new Date().toISOString();
+
+      const confirmAction = actionList.find((a) => a.action === "student_complete_and_comment");
+
+      if (!confirmAction) {
+        return { content: [{ type: "text", text: `No confirm action available. Actions: ${actionList.map((a) => a.action).join(", ") || "none"}` }], isError: true };
+      }
+
+      const extraParams = confirmAction.extra_params;
+      const raw = await submitSessionAction(config, sessionId, {
+        status: currentStatus,
+        action: confirmAction.action,
+        needOtherParams: confirmAction.need_other_params ?? 1,
+        lastOperateTime,
+        extraParams: {
+          code: extraParams?.code ?? "LV001",
+          primaryLevel: extraParams?.primary_level ?? 1,
+          lessonTimeAfter: extraParams?.lesson_time_after ?? "",
+        },
+        score: 0,
+        studentComment: "",
+        basicTags: "",
+        normalTags: "",
+        personalTags: "",
+      });
+
+      const transformed = transformSessionAction(raw);
+      if (args.text === true) return textResult(formatSessionAction(transformed));
+      return jsonResult({ sessionId, ...transformed });
+    },
+  );
 }

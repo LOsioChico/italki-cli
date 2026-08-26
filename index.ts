@@ -21,6 +21,7 @@ const main = defineCommand({
     book: () => import("./src/commands/book").then((m) => m.default),
     reschedule: () => import("./src/commands/reschedule").then((m) => m.default),
     cancel: () => import("./src/commands/cancel").then((m) => m.default),
+    confirm: () => import("./src/commands/confirm").then((m) => m.default),
   },
 });
 
