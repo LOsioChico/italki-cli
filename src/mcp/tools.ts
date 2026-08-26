@@ -293,7 +293,7 @@ export function registerTools(server: McpServer): void {
       description: "Get the authenticated student's lesson history. Filter client-side (the API kind filter is broken). Requires login. Returns translated JSON by default (dollars, minutes). Pass text=true for human-readable output.",
       inputSchema: {
         all: z.boolean().optional().describe("Fetch all pages (up to 1000 lessons) before filtering. Default: first page (50 lessons)."),
-        upcoming: z.boolean().optional().describe("Only upcoming lessons"),
+        upcoming: z.boolean().optional().describe("Only upcoming lessons (includes action_required, waiting, unscheduled groups)"),
         past: z.boolean().optional().describe("Only completed lessons (default: all groups)"),
         limit: z.number().optional().describe("Return only the first N lessons (default 20, ignored if all=true without explicit limit)"),
         timezone: z.string().optional().describe("IANA timezone for lesson times (default: from login config)"),
@@ -311,7 +311,7 @@ export function registerTools(server: McpServer): void {
 
       let filtered = lessons;
       if (args.upcoming === true) {
-        filtered = filtered.filter((l) => l.group === "upcoming");
+        filtered = filtered.filter((l) => l.group !== "completed" && l.group !== "canceled");
       } else if (args.past === true) {
         filtered = filtered.filter((l) => l.group === "completed");
       }

@@ -12,4 +12,6 @@ export const dim = style("2");
 export const red = style("31");
 export const green = style("32");
 export const yellow = style("33");
+export const blue = style("34");
+export const magenta = style("35");
 export const cyan = style("36");

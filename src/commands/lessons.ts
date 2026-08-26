@@ -11,8 +11,8 @@ export default defineCommand({
     json: { type: "boolean", description: "Output as JSON" },
     limit: { type: "string", description: "Show only first N lessons (default 20, ignored if --all without explicit limit)" },
     all: { type: "boolean", description: "Fetch all pages (up to 1000 lessons) before filtering" },
-    upcoming: { type: "boolean", description: "Show only upcoming lessons" },
-    past: { type: "boolean", description: "Show only completed lessons (default)" },
+    upcoming: { type: "boolean", description: "Show only upcoming lessons (includes action_required, waiting, unscheduled)" },
+    past: { type: "boolean", description: "Show only completed lessons" },
   },
   run: async (ctx) => {
     const config = await readConfig();
@@ -32,7 +32,7 @@ export default defineCommand({
     // Filter client-side (API kind filter is broken — only 'all' works)
     let filtered = lessons;
     if (ctx.args.upcoming === true) {
-      filtered = filtered.filter((l) => l.group === "upcoming");
+      filtered = filtered.filter((l) => l.group !== "completed" && l.group !== "canceled");
     } else if (ctx.args.past === true) {
       filtered = filtered.filter((l) => l.group === "completed");
     }
