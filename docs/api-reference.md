@@ -1405,7 +1405,7 @@ X-Token: <i_token>
 | `/api/v2/finance/payment/config/user_bill_country_region` | GET | User's billing country/region |
 | `/api/v3/teacher/{id}/monthly_schedule?year={Y}&month={M}&user_timezone={IANA}` | GET | Monthly calendar view (v3, new) |
 | `/api/v2/session/{id}/time_change?start_time={ISO}&end_time={ISO}` | GET | Available slots for reschedule (verified Aug 22) |
-| `/api/v2/session/{id}` | POST | Submit session action (reschedule, cancel, etc.) (verified Aug 22) |
+| `/api/v2/session/{id}` | POST | Submit session action (reschedule, cancel, confirm) (verified Aug 22 + Aug 26) |
 | `/api/v2/session/{id}/history` | GET | Status change timeline (verified Aug 22) |
 | `/api/v2/session/{id}?version=1` | GET | Session detail with version param (verified Aug 22) |
 | `/api/v3/lesson/{id}/summary` | GET | Lesson summary (verified Aug 22) |
@@ -1627,8 +1627,9 @@ The `POST /api/v2/session/{session_id}` endpoint is a generic action endpoint. T
 | `student_cancel_after_deduct` | TP140 | `6` → ? | Cancel lesson (after teacher accepted) |
 | `student_cancel_reschedule_request` | CO301 | `5` → `6` | Cancel reschedule request |
 | `student_change_time_again` | TS106 | `5` → `5` | Change time again (new reschedule) |
+| `student_complete_and_comment` | LV001 | `7` → `F` | Confirm lesson (student confirms completion) |
 
-Body structure is the same for all actions — `status`, `action`, `need_other_params`, `last_operate_time`, `extra_params` (from `action_list`), `pwd_token`.
+Body structure is the same for all actions — `status`, `action`, `need_other_params`, `last_operate_time`, `extra_params` (from `action_list`), `pwd_token`. The confirm action (`student_complete_and_comment`) additionally sends `score`, `student_comment`, `basic_tags`, `normal_tags`, `personal_tags` (all empty/zero for confirm-only without review — verified Aug 26 from HAR).
 
 ### session_type / lesson_type enum (verified from JS source)
 
@@ -1783,7 +1784,7 @@ See the filter fields table above for the full tag list per category.
 - ✅ `im_type` codes: `"1"`=Skype, `"T"`=Teams, `"6"`=Google Meet, `"8"`=FaceTime, `"9"`=Wechat, `"A"`=Zoom, `"2"`-`"5"`=legacy (verified Aug 22 from JS source)
 - ✅ `course_price_id`: `-1` = trial, real IDs from `price_list` for regular/package (verified Aug 22 from teacher profile + HAR)
 - ✅ `GET /api/v2/session/{id}/time_change` — available slots for reschedule (verified Aug 22 via HAR)
-- ✅ `POST /api/v2/session/{id}` — submit session action (reschedule, cancel) (verified Aug 22 via HAR)
+- ✅ `POST /api/v2/session/{id}` — submit session action (reschedule, cancel, confirm) (verified Aug 22 + Aug 26 via HAR)
 - ✅ `GET /api/v2/session/{id}/history` — status change timeline (verified Aug 22 via HAR)
 - ✅ `GET /api/v3/lesson/{id}/summary` — lesson summary (verified Aug 22 via HAR)
 - ✅ `GET /api/v3/lesson/{id}/notes` — lesson notes (verified Aug 22 via HAR)
@@ -1806,7 +1807,7 @@ See the filter fields table above for the full tag list per category.
 - ❓ Wrong password behavior with correct signature (Cloudflare rate-limited before testing)
 - ❓ `order_type` enum — only `11` observed (trial + single). Package value TBD
 - ❓ Instant lesson booking — `is_instant: true` flow
-- ❓ Cancel lesson flow — `student_cancel_after_deduct` action (TP140) documented from JS action_list, but exact body params NOT captured in HAR. CLI/MCP implemented with action_list lookup from session detail, but NOT live-tested.
+- ✅ Confirm lesson flow — `student_complete_and_comment` action (LV001) verified Aug 26 via HAR. Body includes `score`, `student_comment`, `basic_tags`, `normal_tags`, `personal_tags` (empty for confirm-only). Status `7` → `F`.
 - ❓ `im_type: "Z"` vs `"A"` discrepancy (API returns "Z", JS maps "A" = Zoom)
 - ❓ Full `TRIO*` trial expectation code list (only `TRIO091` observed)
 - ❓ Favorites endpoint
