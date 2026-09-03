@@ -11,8 +11,8 @@ import { createOrder, payOrder, getTimeChangeSlots, submitSessionAction, getSess
 import { readConfig, resolveTimezone } from "../services/config";
 import { DEFAULT_TIMEZONE } from "../constants";
 import { transformSearch } from "../transforms/search";
-import { transformTeacher } from "../transforms/teacher";
-import { transformSchedule } from "../transforms/schedule";
+import { transformTeacher, resolveCoursePrice, type ResolvedPrice } from "../transforms/teacher";
+import { transformSchedule, expandStarts } from "../transforms/schedule";
 import { transformReviews } from "../transforms/reviews";
 import { transformLessons } from "../transforms/lessons";
 import { transformTimeChangeSlots, transformSessionAction, transformSessionHistory } from "../transforms/booking";
@@ -160,11 +160,12 @@ export function registerTools(server: McpServer): void {
   server.registerTool(
     "get_schedule",
     {
-      description: "Get a teacher's availability calendar. Returns translated JSON by default: free slots (booked sessions subtracted), booked slots, advance booking hours, total free minutes. Pass text=true for human-readable output grouped by day.",
+      description: "Get a teacher's availability calendar. Returns translated JSON by default: free slots (booked sessions subtracted), booked slots, advance booking hours, total free minutes. Pass text=true for human-readable output grouped by day. Pass duration (minutes, >= 30) to expand free blocks into concrete lesson starts that fit.",
       inputSchema: {
         id: z.number().describe("Teacher ID"),
         days: z.number().optional().describe("Days to fetch (default 28, max 90)"),
         timezone: z.string().optional().describe("IANA timezone (e.g. America/Bogota, Asia/Tokyo)"),
+        duration: z.number().optional().describe("Lesson length in minutes (>= 30). Expands free blocks into bookable start times where start + duration fits inside the block."),
         text: z.boolean().optional().describe("Output human-readable text instead of JSON"),
       },
     },
@@ -179,6 +180,13 @@ export function registerTools(server: McpServer): void {
       ]);
 
       const transformed = transformSchedule(schedule);
+      if (args.duration != null) {
+        if (args.duration < 30) {
+          return { content: [{ type: "text", text: `duration must be >= 30 minutes, got ${args.duration}` }], isError: true };
+        }
+        transformed.freeSlots = expandStarts(transformed.freeSlots, args.duration);
+        transformed.totalFreeMinutes = transformed.freeSlots.length * args.duration;
+      }
 
       if (args.text === true) {
         const teacherName = teacher?.data?.user_info?.nickname;
@@ -336,13 +344,15 @@ export function registerTools(server: McpServer): void {
   server.registerTool(
     "book_lesson",
     {
-      description: "Book a lesson with a teacher. Creates an order and pays immediately. Requires login. Pass dry_run=true to preview without booking.",
+      description: "Book a lesson with a teacher. Creates an order and pays immediately. Requires login. Pass dry_run=true to preview without booking. For non-trial lessons pass duration (30/45/60/90) — with course_id when the teacher has multiple courses — or an explicit course_price_id.",
       inputSchema: {
         teacher_id: z.number().describe("Teacher ID (from search results)"),
         time: z.string().describe("Lesson start time in ISO 8601 (e.g. 2026-08-29T19:00:00Z)"),
         session_type: z.enum(["trial", "single", "package"]).optional().describe("Session type (default: trial)"),
         language: z.string().optional().describe("Lesson language code (auto-detected from teacher profile if omitted)"),
-        course_price_id: z.number().optional().describe("course_price_id (auto-detected from teacher profile for non-trial)"),
+        duration: z.number().optional().describe("Lesson length in minutes (30/45/60/90). Resolves the matching course_price_id from the teacher's price list. Without it, the first price entry (usually 30min) is used."),
+        course_id: z.number().optional().describe("Course ID — required with duration when the teacher offers multiple courses in the lesson language"),
+        course_price_id: z.number().optional().describe("Explicit course_price_id (overrides duration). Validated against the teacher's price list."),
         im_type: z.enum(["zoom", "skype", "teams"]).optional().describe("IM platform (default: zoom)"),
         no_balance: z.boolean().optional().describe("Skip credits, pay with other method (default: false = use credits)"),
         dry_run: z.boolean().optional().describe("Preview without creating order (default: false)"),
@@ -386,19 +396,21 @@ export function registerTools(server: McpServer): void {
       }
 
       let coursePriceId: number;
-      if (args.course_price_id != null) {
-        coursePriceId = args.course_price_id;
-      } else if (sessionType === "trial") {
+      let resolved: ResolvedPrice | null = null;
+      if (sessionType === "trial") {
         coursePriceId = -1;
       } else {
-        const proCourses = teacher.data?.pro_course_detail ?? [];
-        const tutorCourses = teacher.data?.tutor_course_detail ?? [];
-        const allCourses = [...proCourses, ...tutorCourses];
-        const match = allCourses.find((c) => c.language === language);
-        if (!match || !match.price_list?.[0]) {
-          return { content: [{ type: "text", text: `No course found for language ${language}. Pass course_price_id explicitly.` }], isError: true };
+        try {
+          resolved = resolveCoursePrice(teacher, {
+            language,
+            courseId: args.course_id,
+            durationMinutes: args.duration,
+            coursePriceId: args.course_price_id,
+          });
+        } catch (err) {
+          return { content: [{ type: "text", text: err instanceof Error ? err.message : String(err) }], isError: true };
         }
-        coursePriceId = match.price_list[0].course_price_id;
+        coursePriceId = resolved.coursePriceId;
       }
 
       // order_type: 11 for all bookings (verified from HAR — both trial and single use 11)
@@ -411,6 +423,7 @@ export function registerTools(server: McpServer): void {
         sessionType,
         lessonType,
         coursePriceId,
+        ...(resolved ? { courseId: resolved.courseId, courseTitle: resolved.courseTitle, durationMinutes: resolved.sessionLengthMinutes, sessionPrice: resolved.sessionPrice } : {}),
         timeStart,
         imType,
         imTypeCode,
@@ -444,6 +457,7 @@ export function registerTools(server: McpServer): void {
         teacherName: summary.teacherName,
         language,
         sessionType,
+        ...(resolved ? { courseTitle: resolved.courseTitle, durationMinutes: resolved.sessionLengthMinutes, sessionPrice: resolved.sessionPrice } : {}),
         timeStart,
         paid: true,
         usedCredits: !noBalance,
@@ -452,6 +466,7 @@ export function registerTools(server: McpServer): void {
       if (args.text === true) {
         return textResult([
           `✓ Booked ${sessionType} lesson with ${summary.teacherName}`,
+          resolved ? `  Class:      ${resolved.courseTitle} (${resolved.sessionLengthMinutes}min, $${resolved.sessionPrice})` : "",
           `  Time:       ${timeStart}`,
           `  Language:   ${language}`,
           `  Order ID:   ${order.order_management_id}`,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { transformTeacher } from "./teacher";
+import { transformTeacher, resolveCoursePrice } from "./teacher";
 import type { TeacherProfile } from "../schemas/teacher";
 
 function makeProfile(overrides: Record<string, unknown> = {}): TeacherProfile {
@@ -141,5 +141,108 @@ describe("transformTeacher", () => {
   it("handles null trial when has_trial is 0", () => {
     const profile = makeProfile({ has_trial: 0 });
     expect(transformTeacher(profile).trial).toBeNull();
+  });
+});
+
+// Fixture mirrors Mansour's real shape: 2 english courses, session_length in
+// 15-min units, duplicate price_list entries per duration (package variants).
+function makeCourseProfile(): TeacherProfile {
+  const priceEntry = (pid: number, units: number, cents: number) => ({
+    course_price_id: pid,
+    session_length: units,
+    session_price: cents,
+    package_length: 5,
+    package_price: cents * 5,
+    course_id: 0,
+  });
+  return {
+    data: {
+      user_info: { user_id: 1, nickname: "T", is_pro: 0, is_tutor: 1, origin_country_id: "DZ" },
+      teacher_info: { teach_language: [{ language: "english", level: 7 }] },
+      course_info: { has_trial: 1, trial_price: 600, trial_length: 2, trial_session_count: 283, min_price: 700 },
+      pro_course_detail: [
+        {
+          id: 173811,
+          teacher_id: 1,
+          language: "english",
+          title: "Conversation Class: Listening & Speaking - Pronunciation",
+          description: null,
+          price_list: [
+            priceEntry(429484, 2, 700),
+            priceEntry(429483, 4, 900),
+          ],
+        },
+        {
+          id: 255776,
+          teacher_id: 1,
+          language: "english",
+          title: "Technology Class: Enthusiastic Listening & Speaking session",
+          description: null,
+          price_list: [
+            priceEntry(686777, 2, 800),
+            priceEntry(686776, 4, 1100),
+          ],
+        },
+      ],
+    },
+  } as unknown as TeacherProfile;
+}
+
+describe("resolveCoursePrice", () => {
+  it("resolves duration for a single-course teacher without course_id", () => {
+    const profile = makeCourseProfile();
+    profile.data["pro_course_detail"] = profile.data["pro_course_detail"]?.slice(0, 1);
+    const r = resolveCoursePrice(profile, { language: "english", durationMinutes: 60 });
+    expect(r.coursePriceId).toBe(429483);
+    expect(r.sessionLengthMinutes).toBe(60);
+    expect(r.sessionPrice).toBe(9);
+  });
+
+  it("errors when duration given but teacher has multiple courses and no course_id", () => {
+    expect(() => resolveCoursePrice(makeCourseProfile(), { language: "english", durationMinutes: 60 }))
+      .toThrow(/pass course_id/);
+  });
+
+  it("resolves course_id + duration combination", () => {
+    const r = resolveCoursePrice(makeCourseProfile(), { language: "english", courseId: 255776, durationMinutes: 60 });
+    expect(r.coursePriceId).toBe(686776);
+    expect(r.courseTitle).toBe("Technology Class: Enthusiastic Listening & Speaking session");
+    expect(r.sessionPrice).toBe(11);
+  });
+
+  it("errors listing offered durations when duration not available for the course", () => {
+    expect(() => resolveCoursePrice(makeCourseProfile(), { language: "english", courseId: 255776, durationMinutes: 90 }))
+      .toThrow(/no 90min option.*30min\/\$8.*60min\/\$11/);
+  });
+
+  it("errors listing course ids when course_id unknown", () => {
+    expect(() => resolveCoursePrice(makeCourseProfile(), { language: "english", courseId: 999, durationMinutes: 60 }))
+      .toThrow(/course_id 999 not found.*173811.*255776/);
+  });
+
+  it("validates explicit course_price_id and returns its course + duration", () => {
+    const r = resolveCoursePrice(makeCourseProfile(), { language: "english", coursePriceId: 686776 });
+    expect(r.courseId).toBe(255776);
+    expect(r.sessionLengthMinutes).toBe(60);
+    expect(r.sessionPrice).toBe(11);
+  });
+
+  it("errors with valid IDs when explicit course_price_id is not a price id", () => {
+    // 255776 is a course id, not a price id — the exact mistake that motivated this resolver
+    expect(() => resolveCoursePrice(makeCourseProfile(), { language: "english", coursePriceId: 255776 }))
+      .toThrow(/course_price_id 255776 not found.*429484.*686776/);
+  });
+
+  it("defaults to first price entry when neither duration nor pid given (legacy behavior)", () => {
+    const profile = makeCourseProfile();
+    profile.data["pro_course_detail"] = profile.data["pro_course_detail"]?.slice(0, 1);
+    const r = resolveCoursePrice(profile, { language: "english" });
+    expect(r.coursePriceId).toBe(429484);
+    expect(r.sessionLengthMinutes).toBe(30);
+  });
+
+  it("errors when teacher has no courses in the lesson language", () => {
+    expect(() => resolveCoursePrice(makeCourseProfile(), { language: "spanish", durationMinutes: 60 }))
+      .toThrow(/No spanish courses/);
   });
 });

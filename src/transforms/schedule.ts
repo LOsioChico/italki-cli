@@ -40,3 +40,29 @@ export function transformSchedule(raw: ScheduleResponse): ScheduleResult {
     nextAvailable: d.closest_available_datetime ?? null,
   };
 }
+
+// Expand free blocks into concrete lesson starts for a given duration.
+// Starts run on a 30-min grid from each block's beginning; a start is valid
+// only if start + duration fits inside the block. Blocks shorter than the
+// duration produce no starts (e.g. a 07:00-09:15 block yields 60min starts
+// at 07:00, 07:30, 08:00 — not 08:30, which would end at 09:30).
+export function expandStarts(freeSlots: TimeSlotResult[], durationMinutes: number): TimeSlotResult[] {
+  if (durationMinutes < 30) {
+    throw new Error(`duration must be >= 30min, got ${durationMinutes}`);
+  }
+  const stepMs = 30 * 60 * 1000;
+  const durationMs = durationMinutes * 60 * 1000;
+  const result: TimeSlotResult[] = [];
+  for (const slot of freeSlots) {
+    const start = new Date(slot.startTime).getTime();
+    const end = new Date(slot.endTime).getTime();
+    for (let t = start; t + durationMs <= end; t += stepMs) {
+      result.push({
+        startTime: new Date(t).toISOString(),
+        endTime: new Date(t + durationMs).toISOString(),
+        durationMinutes,
+      });
+    }
+  }
+  return result;
+}

@@ -166,6 +166,92 @@ function transformCourse(course: CourseDetail): CourseResult {
   };
 }
 
+export interface ResolvedPrice {
+  coursePriceId: number;
+  courseId: number;
+  courseTitle: string;
+  sessionLengthMinutes: number;
+  sessionPrice: number;
+}
+
+export interface ResolvePriceOpts {
+  language: string;
+  courseId?: number | undefined;
+  durationMinutes?: number | undefined;
+  coursePriceId?: number | undefined;
+}
+
+/**
+ * Pick a course_price_id from a teacher's price lists.
+ *
+ * Precedence: explicit coursePriceId (validated) > courseId + durationMinutes
+ * > durationMinutes (single-course teachers) > first price entry (legacy default).
+ * Throws with actionable messages — callers surface them verbatim.
+ */
+export function resolveCoursePrice(profile: TeacherProfile, opts: ResolvePriceOpts): ResolvedPrice {
+  const d = profile.data;
+  const langCourses = [...(d.pro_course_detail ?? []), ...(d.tutor_course_detail ?? [])]
+    .filter((c) => c.language === opts.language);
+  if (langCourses.length === 0) {
+    throw new Error(`No ${opts.language} courses found for this teacher. Pass course_price_id explicitly.`);
+  }
+
+  if (opts.coursePriceId != null) {
+    for (const course of langCourses) {
+      const entry = course.price_list?.find((p) => p.course_price_id === opts.coursePriceId);
+      if (entry) {
+        return toResolved(course, entry);
+      }
+    }
+    const valid = langCourses
+      .flatMap((c) => (c.price_list ?? []).map((p) => `${p.course_price_id} (${shortTitle(c.title)}, ${p.session_length * 15}min, $${p.session_price / 100})`));
+    throw new Error(`course_price_id ${opts.coursePriceId} not found for this teacher. Valid IDs: ${valid.join(", ")}`);
+  }
+
+  let candidates = langCourses;
+  if (opts.courseId != null) {
+    candidates = langCourses.filter((c) => c.id === opts.courseId);
+    if (candidates.length === 0) {
+      throw new Error(`course_id ${opts.courseId} not found. Available: ${langCourses.map((c) => `${c.id} (${shortTitle(c.title)})`).join(", ")}`);
+    }
+  } else if (langCourses.length > 1) {
+    throw new Error(`Teacher has ${langCourses.length} ${opts.language} courses — pass course_id: ${langCourses.map((c) => `${c.id} (${shortTitle(c.title)})`).join(", ")}`);
+  }
+
+  const course = candidates[0]!;
+  const priceList = course.price_list ?? [];
+  if (priceList.length === 0) {
+    throw new Error(`No price list for course ${course.id}. Pass course_price_id explicitly.`);
+  }
+
+  if (opts.durationMinutes != null) {
+    const entry = priceList.find((p) => p.session_length * 15 === opts.durationMinutes);
+    if (!entry) {
+      const offered = [...new Set(priceList.map((p) => p.session_length))]
+        .sort((a, b) => a - b)
+        .map((len) => `${len * 15}min/$${priceList.find((p) => p.session_length === len)!.session_price / 100}`);
+      throw new Error(`"${shortTitle(course.title)}" has no ${opts.durationMinutes}min option. Offered: ${offered.join(", ")}`);
+    }
+    return toResolved(course, entry);
+  }
+
+  return toResolved(course, priceList[0]!);
+}
+
+function toResolved(course: CourseDetail, entry: NonNullable<CourseDetail["price_list"]>[number]): ResolvedPrice {
+  return {
+    coursePriceId: entry.course_price_id,
+    courseId: course.id,
+    courseTitle: course.title,
+    sessionLengthMinutes: entry.session_length * 15,
+    sessionPrice: entry.session_price / 100,
+  };
+}
+
+function shortTitle(title: string): string {
+  return title.length > 40 ? `${title.slice(0, 40)}…` : title;
+}
+
 function parseRating(rating: string | undefined): number | null {
   return rating != null && Number(rating) > 0 ? Number(rating) : null;
 }

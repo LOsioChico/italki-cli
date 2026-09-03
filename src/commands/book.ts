@@ -2,6 +2,7 @@ import { defineCommand } from "citty";
 import { getTeacher } from "../services/teacher";
 import { createOrder, payOrder } from "../services/booking";
 import { readConfig } from "../services/config";
+import { resolveCoursePrice, type ResolvedPrice } from "../transforms/teacher";
 import { green, dim, bold } from "../lib/color";
 import { formatDateTime } from "../lib/time-ago";
 
@@ -12,7 +13,9 @@ export default defineCommand({
     time: { type: "string", description: "Lesson start time (ISO 8601, e.g. 2026-08-29T19:00:00Z)", required: true },
     type: { type: "string", description: "Session type: trial (default), single, package" },
     language: { type: "string", description: "Lesson language code (auto-detected from teacher profile if omitted)" },
-    "course-price-id": { type: "string", description: "course_price_id (auto-detected from teacher profile if omitted)" },
+    duration: { type: "string", description: "Lesson length in minutes (30/45/60/90). Resolves the matching course_price_id. Without it, the first price entry (usually 30min) is used." },
+    "course-id": { type: "string", description: "Course ID — required with --duration when the teacher has multiple courses in the lesson language" },
+    "course-price-id": { type: "string", description: "Explicit course_price_id (overrides --duration). Validated against the teacher's price list." },
     "im-type": { type: "string", description: "IM type: zoom (default), skype, teams" },
     "no-balance": { type: "boolean", description: "Skip credits, pay with other method" },
     "dry-run": { type: "boolean", description: "Show what would be booked without creating order" },
@@ -67,27 +70,22 @@ export default defineCommand({
 
     // Determine course_price_id
     let coursePriceId: number;
-    if (ctx.args["course-price-id"]) {
-      coursePriceId = Number(ctx.args["course-price-id"]);
-    } else if (sessionType === "trial") {
+    let resolved: ResolvedPrice | null = null;
+    if (sessionType === "trial") {
       coursePriceId = -1;
     } else {
-      // Find first matching course (pro first, then tutor)
-      const proCourses = teacher.data?.pro_course_detail ?? [];
-      const tutorCourses = teacher.data?.tutor_course_detail ?? [];
-      const allCourses = [...proCourses, ...tutorCourses];
-      const match = allCourses.find((c) => c.language === language);
-      if (!match) {
-        console.error(`No course found for language ${language}. Pass --course-price-id explicitly.`);
+      try {
+        resolved = resolveCoursePrice(teacher, {
+          language,
+          courseId: ctx.args["course-id"] != null ? Number(ctx.args["course-id"]) : undefined,
+          durationMinutes: ctx.args.duration != null ? Number(ctx.args.duration) : undefined,
+          coursePriceId: ctx.args["course-price-id"] != null ? Number(ctx.args["course-price-id"]) : undefined,
+        });
+      } catch (err) {
+        console.error(err instanceof Error ? err.message : String(err));
         process.exit(1);
       }
-      const priceList = match.price_list ?? [];
-      const priceEntry = priceList[0];
-      if (!priceEntry) {
-        console.error(`No price list for course ${match.id}. Pass --course-price-id explicitly.`);
-        process.exit(1);
-      }
-      coursePriceId = priceEntry.course_price_id;
+      coursePriceId = resolved.coursePriceId;
     }
 
     // order_type: 11 for all bookings (verified from HAR — both trial and single use 11)
@@ -100,6 +98,7 @@ export default defineCommand({
       sessionType,
       lessonType,
       coursePriceId,
+      ...(resolved ? { courseId: resolved.courseId, courseTitle: resolved.courseTitle, durationMinutes: resolved.sessionLengthMinutes, sessionPrice: resolved.sessionPrice } : {}),
       timeStart,
       imType,
       imTypeCode,
@@ -113,6 +112,7 @@ export default defineCommand({
       } else {
         console.log(`${bold("Dry run — no order will be created")}\n`);
         console.log(`  Teacher:    ${summary.teacherName} (${teacherId})`);
+        if (resolved) console.log(`  Class:      ${resolved.courseTitle} (${resolved.sessionLengthMinutes}min, $${resolved.sessionPrice})`);
         console.log(`  Language:   ${language}`);
         console.log(`  Type:       ${sessionType} (lesson_type=${lessonType})`);
         console.log(`  Time:       ${formatDateTime(timeStart, config.timezone_iana)}`);
@@ -149,6 +149,7 @@ export default defineCommand({
       teacherName: summary.teacherName,
       language,
       sessionType,
+      ...(resolved ? { courseTitle: resolved.courseTitle, durationMinutes: resolved.sessionLengthMinutes, sessionPrice: resolved.sessionPrice } : {}),
       timeStart,
       paid: true,
       usedCredits: !noBalance,
@@ -158,6 +159,7 @@ export default defineCommand({
       console.log(JSON.stringify(result, null, 2));
     } else {
       console.log(green(`✓ Booked ${sessionType} lesson with ${summary.teacherName}`));
+      if (resolved) console.log(`  ${dim("Class:")}      ${resolved.courseTitle} (${resolved.sessionLengthMinutes}min, $${resolved.sessionPrice})`);
       console.log(`  ${dim("Time:")}       ${formatDateTime(timeStart, config.timezone_iana)}`);
       console.log(`  ${dim("Language:")}   ${language}`);
       console.log(`  ${dim("Order ID:")}   ${order.order_management_id}`);

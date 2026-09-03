@@ -1,7 +1,7 @@
 import { defineCommand } from "citty";
 import { getSchedule } from "../services/schedule";
 import { getTeacher } from "../services/teacher";
-import { transformSchedule } from "../transforms/schedule";
+import { transformSchedule, expandStarts } from "../transforms/schedule";
 import { formatSchedule } from "../presenters/schedule";
 import { DEFAULT_TIMEZONE } from "../constants";
 import { readConfig, resolveTimezone } from "../services/config";
@@ -14,6 +14,7 @@ export default defineCommand({
     json: { type: "boolean", description: "Output as JSON" },
     timezone: { type: "string", description: "IANA timezone (e.g. America/Bogota, Asia/Tokyo)" },
     days: { type: "string", description: "Days to fetch (default 28, max 90)" },
+    duration: { type: "string", description: "Lesson length in minutes (>= 30). Expands free blocks into bookable start times where start + duration fits." },
   },
   run: async (ctx) => {
     const id = Number(ctx.args.id);
@@ -31,6 +32,15 @@ export default defineCommand({
     ]);
 
     const transformed = transformSchedule(schedule);
+    const duration = Number(ctx.args.duration);
+    if (ctx.args.duration != null) {
+      if (!duration || duration < 30) {
+        console.error(`Error: duration must be >= 30 minutes, got ${ctx.args.duration}`);
+        process.exit(1);
+      }
+      transformed.freeSlots = expandStarts(transformed.freeSlots, duration);
+      transformed.totalFreeMinutes = transformed.freeSlots.length * duration;
+    }
     const useJson = ctx.args.json === true;
 
     if (useJson) {
