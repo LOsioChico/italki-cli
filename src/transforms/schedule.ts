@@ -41,11 +41,7 @@ export function transformSchedule(raw: ScheduleResponse): ScheduleResult {
   };
 }
 
-// Expand free blocks into concrete lesson starts for a given duration.
-// Starts run on a 30-min grid from each block's beginning; a start is valid
-// only if start + duration fits inside the block. Blocks shorter than the
-// duration produce no starts (e.g. a 07:00-09:15 block yields 60min starts
-// at 07:00, 07:30, 08:00 — not 08:30, which would end at 09:30).
+// 30-min-grid starts where start + duration fits inside each free block.
 export function expandStarts(freeSlots: TimeSlotResult[], durationMinutes: number): TimeSlotResult[] {
   if (durationMinutes < 30) {
     throw new Error(`duration must be >= 30min, got ${durationMinutes}`);

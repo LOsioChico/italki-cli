@@ -144,8 +144,7 @@ describe("transformTeacher", () => {
   });
 });
 
-// Fixture mirrors Mansour's real shape: 2 english courses, session_length in
-// 15-min units, duplicate price_list entries per duration (package variants).
+// Fixture mirrors Mansour's real shape (session_length in 15-min units, duplicate package variants).
 function makeCourseProfile(): TeacherProfile {
   const priceEntry = (pid: number, units: number, cents: number) => ({
     course_price_id: pid,
@@ -228,7 +227,6 @@ describe("resolveCoursePrice", () => {
   });
 
   it("errors with valid IDs when explicit course_price_id is not a price id", () => {
-    // 255776 is a course id, not a price id — the exact mistake that motivated this resolver
     expect(() => resolveCoursePrice(makeCourseProfile(), { language: "english", coursePriceId: 255776 }))
       .toThrow(/course_price_id 255776 not found.*429484.*686776/);
   });

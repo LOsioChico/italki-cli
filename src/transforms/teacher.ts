@@ -182,11 +182,8 @@ export interface ResolvePriceOpts {
 }
 
 /**
- * Pick a course_price_id from a teacher's price lists.
- *
- * Precedence: explicit coursePriceId (validated) > courseId + durationMinutes
+ * Pick a course_price_id: explicit coursePriceId (validated) > courseId + durationMinutes
  * > durationMinutes (single-course teachers) > first price entry (legacy default).
- * Throws with actionable messages — callers surface them verbatim.
  */
 export function resolveCoursePrice(profile: TeacherProfile, opts: ResolvePriceOpts): ResolvedPrice {
   const d = profile.data;
