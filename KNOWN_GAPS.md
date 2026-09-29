@@ -2,7 +2,7 @@
 
 > Verification status per module. Statuses: `runtime-verified` (ran against live API this codebase's lifetime),
 > `unit-tested-only`, `aspirational` (planned, not built).
-> Update this file whenever a module's status changes. Last audit: 2026-08-26.
+> Update this file whenever a module's status changes. Last audit: 2026-09-28.
 
 ## Verification status
 
@@ -17,3 +17,4 @@ All modules `runtime-verified`.
 | Reschedule + cancel POST not live-tested | Code matches HAR (Aug 22). Action_list lookup verified. | Live-test when opportunity arises |
 | Confirm POST not live-tested | Code matches HAR (Aug 26). Lesson was already confirmed via web UI before CLI test — CLI correctly reports no confirm action available. | Live-test on next action_required lesson |
 | Lesson review submission not implemented | HAR captured `POST /v3/lesson/lessons/{id}/reviews_v2` (Aug 26). Confirm flow works without review. | Add if user wants to submit reviews from CLI |
+| OTP login flow added Sep 28 — `loginviaemail` can return `otp_verify` challenge; `verifyLoginOtp` + `--otp` flag handle step 2 | Login now requires an emailed 4-digit code when italki challenges the device | Verified end-to-end Sep 28. `otp_code_resend` endpoint exists in JS but not wired/verified |

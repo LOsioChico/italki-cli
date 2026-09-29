@@ -17,12 +17,16 @@ function computeSignature(email: string, password: string): string {
 const loginResponseSchema = z.object({
   success: z.number(),
   data: z.object({
-    i_token: z.string(),
+    i_token: z.string().optional(),
     user: z.object({
       user_id: z.number(),
       nickname: z.string(),
       timezone_iana: z.string(),
-    }),
+    }).optional(),
+    otp_verify: z.number().optional(),
+    otp_token_id: z.string().optional(),
+    otp_account: z.string().optional(),
+    otp_code_len: z.number().optional(),
   }).optional(),
   error: z.object({
     code: z.string(),
@@ -31,8 +35,9 @@ const loginResponseSchema = z.object({
 });
 
 export type LoginResult =
-  | { success: true; i_token: string; user_id: number; nickname: string; timezone_iana: string }
-  | { success: false; error: string };
+  | { status: "ok"; i_token: string; user_id: number; nickname: string; timezone_iana: string }
+  | { status: "otp"; otp_token_id: string; otp_account: string; otp_code_len: number }
+  | { status: "fail"; error: string };
 
 const ERROR_MESSAGES: Record<string, string> = {
   SignatureError: "Login rejected — italki may have updated their API. Check docs/api-reference.md → Auth flow.",
@@ -57,19 +62,47 @@ export async function login(email: string, password: string): Promise<LoginResul
   // Cloudflare blocks return HTML, not JSON
   const body = await res.text();
   if (!body.startsWith("{")) {
-    return { success: false, error: `HTTP ${res.status}: blocked by Cloudflare (rate limited?). Try again later.` };
+    return { status: "fail", error: `HTTP ${res.status}: blocked by Cloudflare (rate limited?). Try again later.` };
   }
 
   const parsed = loginResponseSchema.parse(JSON.parse(body));
+  return interpretLoginResponse(parsed);
+}
 
-  if (!parsed.success || !parsed.data) {
+export async function verifyLoginOtp(otpTokenId: string, otpCode: string): Promise<LoginResult> {
+  const res = await fetch(`${API_BASE}/api/v2/loginviaotp`, {
+    method: "POST",
+    headers: API_HEADERS,
+    body: JSON.stringify({ otp_code: otpCode, otp_token_id: otpTokenId }),
+  });
+
+  const body = await res.text();
+  if (!body.startsWith("{")) {
+    return { status: "fail", error: `HTTP ${res.status}: blocked by Cloudflare (rate limited?). Try again later.` };
+  }
+
+  const parsed = loginResponseSchema.parse(JSON.parse(body));
+  return interpretLoginResponse(parsed);
+}
+
+function interpretLoginResponse(parsed: z.infer<typeof loginResponseSchema>): LoginResult {
+  if (parsed.data?.otp_token_id) {
+    return {
+      status: "otp",
+      otp_token_id: parsed.data.otp_token_id,
+      otp_account: parsed.data.otp_account ?? "",
+      otp_code_len: parsed.data.otp_code_len ?? 4,
+    };
+  }
+
+  if (!parsed.success || !parsed.data?.i_token || !parsed.data.user) {
     const code = parsed.error?.code ?? "Unknown";
     const msg = ERROR_MESSAGES[code] ?? parsed.error?.msg ?? code;
-    return { success: false, error: msg };
+    return { status: "fail", error: msg };
   }
 
   return {
-    success: true,
+    status: "ok",
     i_token: parsed.data.i_token,
     user_id: parsed.data.user.user_id,
     nickname: parsed.data.user.nickname,

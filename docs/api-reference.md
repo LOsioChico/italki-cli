@@ -1230,6 +1230,47 @@ const signature = "11" + "001" + encrypted.toString("hex").toUpperCase();
 
 **Not yet verified:** Wrong password with correct signature (Cloudflare rate-limited before we could test — the API returns JSON errors, but Cloudflare blocks after ~5 login attempts).
 
+#### OTP step (added by italki — verified Sep 28, 2026)
+
+`loginviaemail` may return an OTP challenge instead of a token. Trigger conditions unknown (possibly new/unrecognized device — `X-Browser-Key` is random per call).
+
+**Challenge response (HTTP 200, `success:1`):**
+
+```json
+{
+  "data": {
+    "otp_verify": 11,
+    "otp_token_id": "abcdef1234567890abcdef1234567890",
+    "otp_account": "u*******r@gmail.com",
+    "otp_code_len": 4
+  },
+  "success": 1
+}
+```
+
+A 4-digit code is emailed to `otp_account`. `otp_token_id` is stable across repeated `loginviaemail` calls for the same account.
+
+**Verify:**
+
+```
+POST https://api.italki.com/api/v2/loginviaotp
+{"otp_code": "1234", "otp_token_id": "<token_id>"}
+```
+
+| Field | Value |
+|---|---|
+| `otp_code` | The 4-digit code from the email |
+| `otp_token_id` | `otp_token_id` from the challenge |
+| Headers | Standard `API_HEADERS` only — no `x-signature`, no `X-Device` |
+
+Success returns the same shape as password login (`data.i_token` + `data.user`) — **verified end-to-end Sep 28, 2026** (real account, real code).
+
+**Error on wrong code:** `{"error": {"code": "LoginOtpCodeIncorrectError", "text_code": "OTP007"}, "success": 0}` (HTTP 200).
+
+**Related endpoints (seen in `italki-login` JS chunk, NOT verified live):**
+- `POST v2/login/otp_code_resend` — resend the OTP email
+- `v2/loginviaotp` also accepts `{otp_token}` — link-based OTP from email, different flow
+
 **If login breaks:** italki may update the AES key/IV in their JS bundle. Extract new values by fetching the login page, finding the main JS URL, and searching for `enc.Utf8.parse("...")` near `AES.encrypt`. The key/IV are 16-character strings.
 
 ### Authenticated requests

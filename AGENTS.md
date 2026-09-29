@@ -129,7 +129,7 @@ If you're unsure about an API behavior, test it with `curl` first (G13: curl fir
 - **Hono** — REST server solves no real problem. CLI covers terminal, MCP covers AI. Add later if needed (~30 lines).
 - **cli-table3** — table formatting can be hand-rolled for 4-5 columns. Add if tables get complex.
 - **ora** — spinners can be a 5-line ANSI spinner. Add if we have long-running operations.
-- **playwright** — not needed. Login API reverse-engineered (2026-08-15), pure HTTP with AES signature. No browser automation.
+- **playwright** — not needed. Login API reverse-engineered (2026-08-15), pure HTTP with AES signature + OTP step (added by italki, verified 2026-09-28: `loginviaemail` returns `otp_verify` challenge → `loginviaotp` with `--otp` flag). No browser automation.
 
 ## Engineering discipline
 
