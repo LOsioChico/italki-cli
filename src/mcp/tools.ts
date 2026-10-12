@@ -11,7 +11,7 @@ import { createOrder, payOrder, getTimeChangeSlots, submitSessionAction, getSess
 import { readConfig, resolveTimezone } from "../services/config";
 import { DEFAULT_TIMEZONE } from "../constants";
 import { transformSearch } from "../transforms/search";
-import { transformTeacher, resolveCoursePrice, type ResolvedPrice } from "../transforms/teacher";
+import { transformTeacher, resolveCoursePrice, checkTrialEligibility, type ResolvedPrice } from "../transforms/teacher";
 import { transformSchedule, expandStarts } from "../transforms/schedule";
 import { transformReviews } from "../transforms/reviews";
 import { transformLessons } from "../transforms/lessons";
@@ -127,7 +127,7 @@ export function registerTools(server: McpServer): void {
       const showSchedule = args.schedule === true;
 
       const [profile, schedule] = await Promise.all([
-        getTeacher(args.id),
+        getTeacher(args.id, config),
         showSchedule ? getSchedule(args.id, 7, tz).catch(() => null) : Promise.resolve(null),
       ]);
 
@@ -176,7 +176,7 @@ export function registerTools(server: McpServer): void {
 
       const [schedule, teacher] = await Promise.all([
         getSchedule(args.id, days, tz),
-        getTeacher(args.id).catch(() => null),
+        getTeacher(args.id, config).catch(() => null),
       ]);
 
       const transformed = transformSchedule(schedule);
@@ -237,7 +237,7 @@ export function registerTools(server: McpServer): void {
     async (args) => {
       const config = await readConfig();
       const tz = resolveTimezone(args.timezone, config, DEFAULT_TIMEZONE);
-      const results = await Promise.allSettled(args.ids.map((id) => getTeacher(id)));
+      const results = await Promise.allSettled(args.ids.map((id) => getTeacher(id, config)));
       const profiles = results
         .filter((r): r is PromiseFulfilledResult<Awaited<ReturnType<typeof getTeacher>>> => r.status === "fulfilled")
         .map((r) => r.value);
@@ -387,18 +387,27 @@ export function registerTools(server: McpServer): void {
         return { content: [{ type: "text", text: `Invalid im_type: ${imType}` }], isError: true };
       }
 
-      // Fetch teacher profile for language + course_price_id
-      const teacher = await getTeacher(teacherId);
+      // Fetch teacher profile (authed — personalizes student_info for trial checks)
+      const teacher = await getTeacher(teacherId, config);
       const teachLangs = teacher.data?.teacher_info?.teach_language ?? [];
-      const language = args.language ?? teachLangs[0]?.language ?? "";
+      let language = args.language;
       if (!language) {
-        return { content: [{ type: "text", text: "Could not determine lesson language. Pass language explicitly." }], isError: true };
+        if (teachLangs.length === 1) {
+          language = teachLangs[0]!.language;
+        } else if (teachLangs.length > 1) {
+          return { content: [{ type: "text", text: `Teacher teaches multiple languages (${teachLangs.map((l) => l.language).join(", ")}). Pass language explicitly.` }], isError: true };
+        } else {
+          return { content: [{ type: "text", text: "Could not determine lesson language. Pass language explicitly." }], isError: true };
+        }
       }
 
       let coursePriceId: number;
       let resolved: ResolvedPrice | null = null;
+      let trialBlocker: string | null = null;
       if (sessionType === "trial") {
         coursePriceId = -1;
+        const eligibility = checkTrialEligibility(teacher);
+        if (!eligibility.eligible) trialBlocker = eligibility.reason;
       } else {
         try {
           resolved = resolveCoursePrice(teacher, {
@@ -429,10 +438,15 @@ export function registerTools(server: McpServer): void {
         imTypeCode,
         orderType,
         noBalance,
+        ...(trialBlocker ? { trialBlocker } : {}),
       };
 
       if (dryRun) {
         return jsonResult(summary);
+      }
+
+      if (trialBlocker) {
+        return { content: [{ type: "text", text: trialBlocker }], isError: true };
       }
 
       const order = await createOrder(config, {

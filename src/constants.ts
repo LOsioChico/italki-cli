@@ -154,3 +154,8 @@ export const TRIAL_EXPECTATION_MAP: Record<string, string> = {
   TRIO094: "Discuss my learning goal",
   TE994: "Others",
 };
+
+// API error text_code → friendly message — verified from live error bodies
+export const API_ERROR_MESSAGES: Record<string, string> = {
+  BK038: "No trial lessons remaining on your account — book a single lesson instead.",
+};

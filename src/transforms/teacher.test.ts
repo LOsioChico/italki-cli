@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { transformTeacher, resolveCoursePrice } from "./teacher";
+import { transformTeacher, resolveCoursePrice, checkTrialEligibility } from "./teacher";
 import type { TeacherProfile } from "../schemas/teacher";
 
 function makeProfile(overrides: Record<string, unknown> = {}): TeacherProfile {
@@ -141,6 +141,50 @@ describe("transformTeacher", () => {
   it("handles null trial when has_trial is 0", () => {
     const profile = makeProfile({ has_trial: 0 });
     expect(transformTeacher(profile).trial).toBeNull();
+  });
+});
+
+describe("checkTrialEligibility", () => {
+  it("eligible when teacher offers trial and student_info absent (public fetch)", () => {
+    const result = checkTrialEligibility(makeProfile());
+    expect(result.eligible).toBe(true);
+    expect(result.reason).toBeNull();
+  });
+
+  it("ineligible when teacher offers no trial", () => {
+    const result = checkTrialEligibility(makeProfile({ has_trial: 0 }));
+    expect(result.eligible).toBe(false);
+    expect(result.reason).toMatch(/doesn't offer/);
+  });
+
+  it("ineligible when viewer already used trial with this teacher (authed has_trial=0)", () => {
+    const profile = makeProfile({ has_trial: 0 });
+    (profile.data as Record<string, unknown>)['student_info'] = { already_has_trial: 1, trial_left_amount: 0 };
+    const result = checkTrialEligibility(profile);
+    expect(result.eligible).toBe(false);
+    expect(result.reason).toMatch(/already used/);
+  });
+
+  it("ineligible when viewer has no trial quota left (authed has_trial=0)", () => {
+    const profile = makeProfile({ has_trial: 0 });
+    (profile.data as Record<string, unknown>)['student_info'] = { already_has_trial: 0, trial_left_amount: 0 };
+    const result = checkTrialEligibility(profile);
+    expect(result.eligible).toBe(false);
+    expect(result.reason).toMatch(/No trial lessons remaining/);
+  });
+
+  it("ineligible when authed teacher genuinely offers no trial", () => {
+    const profile = makeProfile({ has_trial: 0 });
+    (profile.data as Record<string, unknown>)['student_info'] = { already_has_trial: 0, trial_left_amount: 3 };
+    const result = checkTrialEligibility(profile);
+    expect(result.eligible).toBe(false);
+    expect(result.reason).toMatch(/doesn't offer/);
+  });
+
+  it("eligible when viewer has quota and hasn't trialed this teacher", () => {
+    const profile = makeProfile();
+    (profile.data as Record<string, unknown>)['student_info'] = { already_has_trial: 0, trial_left_amount: 2 };
+    expect(checkTrialEligibility(profile).eligible).toBe(true);
   });
 });
 

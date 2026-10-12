@@ -2,7 +2,7 @@ import { defineCommand } from "citty";
 import { getTeacher } from "../services/teacher";
 import { createOrder, payOrder } from "../services/booking";
 import { readConfig } from "../services/config";
-import { resolveCoursePrice, type ResolvedPrice } from "../transforms/teacher";
+import { resolveCoursePrice, checkTrialEligibility, type ResolvedPrice } from "../transforms/teacher";
 import { green, dim, bold } from "../lib/color";
 import { formatDateTime } from "../lib/time-ago";
 
@@ -59,20 +59,30 @@ export default defineCommand({
       process.exit(1);
     }
 
-    // Fetch teacher profile to get language + course_price_id
-    const teacher = await getTeacher(teacherId);
+    // Fetch teacher profile (authed — personalizes student_info for trial checks)
+    const teacher = await getTeacher(teacherId, config);
     const teachLangs = teacher.data?.teacher_info?.teach_language ?? [];
-    const language = ctx.args.language ?? teachLangs[0]?.language ?? "";
+    let language = ctx.args.language;
     if (!language) {
-      console.error("Could not determine lesson language. Pass --language explicitly.");
-      process.exit(1);
+      if (teachLangs.length === 1) {
+        language = teachLangs[0]!.language;
+      } else if (teachLangs.length > 1) {
+        console.error(`Teacher teaches multiple languages (${teachLangs.map((l) => l.language).join(", ")}). Pass --language explicitly.`);
+        process.exit(1);
+      } else {
+        console.error("Could not determine lesson language. Pass --language explicitly.");
+        process.exit(1);
+      }
     }
 
     // Determine course_price_id
     let coursePriceId: number;
     let resolved: ResolvedPrice | null = null;
+    let trialBlocker: string | null = null;
     if (sessionType === "trial") {
       coursePriceId = -1;
+      const eligibility = checkTrialEligibility(teacher);
+      if (!eligibility.eligible) trialBlocker = eligibility.reason;
     } else {
       try {
         resolved = resolveCoursePrice(teacher, {
@@ -104,6 +114,7 @@ export default defineCommand({
       imTypeCode,
       orderType,
       noBalance,
+      ...(trialBlocker ? { trialBlocker } : {}),
     };
 
     if (dryRun) {
@@ -120,9 +131,15 @@ export default defineCommand({
         console.log(`  Price ID:   ${coursePriceId}`);
         console.log(`  Order type: ${orderType}`);
         console.log(`  Use credits: ${!noBalance}`);
+        if (trialBlocker) console.log(`  ${bold("Trial blocked:")} ${trialBlocker}`);
         console.log(`\n  ${dim("Remove --dry-run to book for real.")}`);
       }
       return;
+    }
+
+    if (trialBlocker) {
+      console.error(trialBlocker);
+      process.exit(1);
     }
 
     // Create order

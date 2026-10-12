@@ -440,7 +440,7 @@ Same structure as `pro_course_detail` but for community tutor courses. Empty for
 | `is_blocked` | 0/1 | 0 | Viewer blocked by teacher |
 | `is_have_filled_contact_teacher` | boolean | false | Has contacted teacher |
 
-**Note:** `student_info` is present in public responses but reflects the anonymous viewer (not authenticated).
+**Note (verified Oct 12):** `student_info` is always present but its values depend on auth — unauthed returns anonymous defaults (`trial_left_amount: 3` = italki's new-account trial quota), authed (`X-Token`) returns the real viewer's values. **Auth also flips `has_trial` semantics:** unauthed `has_trial=1` means "teacher offers trials"; authed it becomes per-viewer availability — `0` means "trial not available to YOU" (any reason: quota spent, already used, or not offered). Check `student_info` for the granular reason.
 
 #### `data.exam_result_shown`
 
@@ -1365,6 +1365,12 @@ X-Token: <i_token>
 {"order_management_id": "2203351374518667584"}
 ```
 
+**Error responses (verified Oct 12):**
+
+| `error.text_code` | `error.code` | HTTP | Cause |
+|---|---|---|---|
+| `BK038` | `NoTrialLessonCountError` | 400 | Student has 0 trial lessons remaining (account-wide quota, not per-teacher). Check `student_info.trial_left_amount` on the authed teacher profile first |
+
 | Field | Type | Notes |
 |---|---|---|
 | `order_management_id` | string | Order ID — use this in the payment URL |
@@ -1844,6 +1850,9 @@ See the filter fields table above for the full tag list per category.
 - ✅ `order_type` = `11` for both trial and single lessons (verified Aug 24 from non-trial HAR)
 - ✅ `source_type` = `5` for both trial and single (verified Aug 24)
 - ✅ Non-trial booking: `lesson_type=1`, `course_price_id` from teacher's `price_list` (verified Aug 24)
+- ✅ `student_info` + `has_trial` auth semantics — unauthed: anonymous defaults + `has_trial=1` means "offers trials"; authed: real viewer values + `has_trial` flips to per-viewer availability (verified Oct 12 via live calls)
+- ✅ `GET /api/v2/session/trial_info` live response: `trial_count`, `free_trial_count` are account-wide trial quota (verified Oct 12 — `trial_count: 0` blocks trial orders with BK038)
+- ✅ Booking error `BK038 NoTrialLessonCountError` — account trial quota exhausted (verified Oct 12 via live 400)
 
 ### Still unknown (need auth to test)
 

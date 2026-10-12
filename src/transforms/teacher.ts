@@ -65,6 +65,44 @@ export interface TrialInfo {
   description: string | null;
 }
 
+export interface StudentInfo {
+  trialLeftAmount: number | null;
+  alreadyHasTrial: boolean;
+}
+
+export interface TrialEligibility {
+  eligible: boolean;
+  reason: string | null;
+}
+
+/**
+ * Can this viewer book a trial with this teacher?
+ * Semantics verified Oct 12: unauthed has_trial=1 means "teacher offers trials";
+ * authed has_trial flips to per-viewer availability (0 = blocked for ANY reason).
+ * The granular reason lives in student_info (already_has_trial, trial_left_amount).
+ */
+export function checkTrialEligibility(profile: TeacherProfile): TrialEligibility {
+  const d = profile.data;
+  const offers = d.teacher_info.has_trial === 1 || d.course_info?.has_trial === 1;
+  const s = d.student_info;
+  if (!s) {
+    // Public fetch: has_trial means "teacher offers trials"; API enforces quota server-side.
+    return offers
+      ? { eligible: true, reason: null }
+      : { eligible: false, reason: "This teacher doesn't offer trial lessons." };
+  }
+  if (s.already_has_trial === 1) {
+    return { eligible: false, reason: "Trial already used with this teacher — book a single lesson instead." };
+  }
+  if ((s.trial_left_amount ?? 0) <= 0) {
+    return { eligible: false, reason: "No trial lessons remaining on your account — book a single lesson instead." };
+  }
+  if (!offers) {
+    return { eligible: false, reason: "This teacher doesn't offer trial lessons." };
+  }
+  return { eligible: true, reason: null };
+}
+
 export interface TeacherProfileResult {
   id: number;
   name: string;
@@ -89,6 +127,7 @@ export interface TeacherProfileResult {
   sessionCount: number;
   studentCount: number;
   trial: TrialInfo | null;
+  studentInfo: StudentInfo | null;
   priceFrom: number | null;
   hasBeginnerCourse: boolean;
   features: string[];
@@ -338,6 +377,12 @@ export function transformTeacher(raw: TeacherProfile): TeacherProfileResult {
     sessionCount: t.session_count ?? 0,
     studentCount: t.student_count ?? 0,
     trial,
+    studentInfo: d.student_info
+      ? {
+          trialLeftAmount: d.student_info.trial_left_amount ?? null,
+          alreadyHasTrial: d.student_info.already_has_trial === 1,
+        }
+      : null,
     priceFrom: toDollars(c?.min_price),
     hasBeginnerCourse: c?.has_beginner_course === 1,
     features,

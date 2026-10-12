@@ -98,6 +98,10 @@ export const teacherProfileSchema = z.looseObject({
       trial_description: z.string().optional(),
       has_beginner_course: z.number().optional(),
     }).partial().optional(),
+    student_info: z.looseObject({
+      trial_left_amount: z.number().optional(),
+      already_has_trial: z.number().optional(),
+    }).partial().optional(),
     pro_course_detail: z.array(courseDetailSchema).optional(),
     tutor_course_detail: z.array(courseDetailSchema).optional(),
     teacher_statistics: z.looseObject({

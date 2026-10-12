@@ -1,4 +1,5 @@
 import { authedFetch } from "../lib/auth";
+import { apiErrorMessage } from "../lib/api-error";
 import {
   createOrderResponseSchema,
   payOrderResponseSchema,
@@ -48,7 +49,7 @@ export async function createOrder(
   const res = await authedFetch("/api/v3/orders", config, { method: "POST", body });
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`Create order failed (${res.status}): ${text}`);
+    throw new Error(apiErrorMessage("Create order", res.status, text));
   }
   return createOrderResponseSchema.parse(await res.json());
 }
@@ -63,7 +64,7 @@ export async function payOrder(
   const res = await authedFetch(`/api/v3/orders/${orderId}/payment`, config, { method: "POST", body });
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`Payment failed (${res.status}): ${text}`);
+    throw new Error(apiErrorMessage("Payment", res.status, text));
   }
   return payOrderResponseSchema.parse(await res.json());
 }
@@ -83,7 +84,7 @@ export async function getTimeChangeSlots(
   );
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`Time change slots failed (${res.status}): ${text}`);
+    throw new Error(apiErrorMessage("Time change slots", res.status, text));
   }
   return timeChangeResponseSchema.parse(await res.json());
 }
@@ -128,7 +129,7 @@ export async function submitSessionAction(
   const res = await authedFetch(`/api/v2/session/${sessionId}`, config, { method: "POST", body });
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`Session action failed (${res.status}): ${text}`);
+    throw new Error(apiErrorMessage("Session action", res.status, text));
   }
   return sessionActionResponseSchema.parse(await res.json());
 }
@@ -141,7 +142,7 @@ export async function getSessionHistory(
   const res = await authedFetch(`/api/v2/session/${sessionId}/history`, config);
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`Session history failed (${res.status}): ${text}`);
+    throw new Error(apiErrorMessage("Session history", res.status, text));
   }
   return sessionHistoryResponseSchema.parse(await res.json());
 }
@@ -154,7 +155,7 @@ export async function getSessionDetail(
   const res = await authedFetch(`/api/v2/session/${sessionId}`, config);
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`Session detail failed (${res.status}): ${text}`);
+    throw new Error(apiErrorMessage("Session detail", res.status, text));
   }
   return sessionDetailResponseSchema.parse(await res.json());
 }
