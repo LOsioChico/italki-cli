@@ -55,33 +55,36 @@ bun run index.ts <command> --help    # flags for a specific command
 
 ## MCP server
 
-`italki mcp` starts a stdio MCP server for AI tools (Claude Desktop, Cursor):
+`italki mcp` starts a stdio MCP server for AI tools (Devin, Claude Desktop, Cursor):
 
 `~/.config/claude/claude_desktop_config.json`:
 
 ```json
 {
   "mcpServers": {
-    "italki": { "command": "bun", "args": ["run", "/path/to/italki-cli/index.ts", "mcp"] }
+    "italki": {
+      "command": "bun",
+      "args": ["run", "/path/to/italki-cli/index.ts", "mcp"]
+    }
   }
 }
 ```
 
-| Tool | Description | Auth? |
-|---|---|---|
-| `search_teachers` | Search by language with filters + client-side sort | No |
-| `get_teacher` | Full teacher profile (bio, courses, pricing, stats, education) | No |
-| `get_schedule` | Availability calendar (default 28 days, `days` param adjustable) | No |
-| `get_reviews` | Paginated student reviews | No |
-| `compare_teachers` | Fetch 2+ teacher profiles in parallel | No |
-| `get_balance` | Credit balance (ITC) | Yes |
-| `get_whoami` | Profile + learning languages + analytics | Yes |
-| `get_lessons` | Lesson history with client-side filters | Yes |
-| `book_lesson` | Book a lesson (dry_run to preview) | Yes |
-| `reschedule_lesson` | View slots or reschedule a lesson | Yes |
-| `cancel_lesson` | Cancel a lesson | Yes |
-| `confirm_lesson` | Confirm a completed lesson (status 7 → F) | Yes |
-| `get_session_history` | Status change timeline for a session | Yes |
+| Tool                  | Description                                                      | Auth? |
+| --------------------- | ---------------------------------------------------------------- | ----- |
+| `search_teachers`     | Search by language with filters + client-side sort               | No    |
+| `get_teacher`         | Full teacher profile (bio, courses, pricing, stats, education)   | No    |
+| `get_schedule`        | Availability calendar (default 28 days, `days` param adjustable) | No    |
+| `get_reviews`         | Paginated student reviews                                        | No    |
+| `compare_teachers`    | Fetch 2+ teacher profiles in parallel                            | No    |
+| `get_balance`         | Credit balance (ITC)                                             | Yes   |
+| `get_whoami`          | Profile + learning languages + analytics                         | Yes   |
+| `get_lessons`         | Lesson history with client-side filters                          | Yes   |
+| `book_lesson`         | Book a lesson (dry_run to preview)                               | Yes   |
+| `reschedule_lesson`   | View slots or reschedule a lesson                                | Yes   |
+| `cancel_lesson`       | Cancel a lesson                                                  | Yes   |
+| `confirm_lesson`      | Confirm a completed lesson (status 7 → F)                        | Yes   |
+| `get_session_history` | Status change timeline for a session                             | Yes   |
 
 All tools return translated JSON by default (domain objects: dollars, tag names, minutes). Pass `text: true` for compact human-readable text.
 
@@ -115,13 +118,13 @@ See [AGENTS.md](./AGENTS.md) for the full operating contract.
 
 ## Tech stack
 
-| Tool | Why |
-|---|---|
-| [Bun](https://bun.sh) | Dev runtime — fast, native TypeScript |
-| [TypeScript](https://typescriptlang.org) | Type safety, strict mode |
-| [Zod](https://zod.dev) | Runtime validation of API responses. 50+ nested fields need a schema, not hand-written interfaces. |
-| [Citty](https://github.com/unjs/citty) | CLI arg parsing + auto `--help`. ~3KB, works on Bun + Node. |
-| [Oxlint](https://oxc.rs) | 5 custom lint rules enforce architecture separation. Keys, not prompts. |
+| Tool                                     | Why                                                                                                |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| [Bun](https://bun.sh)                    | Dev runtime — fast, native TypeScript                                                              |
+| [TypeScript](https://typescriptlang.org) | Type safety, strict mode                                                                           |
+| [Zod](https://zod.dev)                   | Runtime validation of API responses. 50+ nested fields need a schema, not hand-written interfaces. |
+| [Citty](https://github.com/unjs/citty)   | CLI arg parsing + auto `--help`. ~3KB, works on Bun + Node.                                        |
+| [Oxlint](https://oxc.rs)                 | 5 custom lint rules enforce architecture separation. Keys, not prompts.                            |
 
 ## Documentation
 
